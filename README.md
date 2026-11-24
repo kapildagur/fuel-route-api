@@ -146,6 +146,16 @@ Import `postman/fuel-route-api.postman_collection.json` and set its `baseUrl` va
 
 To run a batch of routes, open the Collection Runner, choose the "Data-driven" folder, and select `postman/routes.csv` as the data file. Each row of the file gives a start, a finish, the optional parameters, and the status the request should return.
 
+## Database access
+
+| When | Queries | How |
+| --- | --- | --- |
+| Server start | 1 | Every station, only the columns the matcher needs, into an in-memory index. |
+| `City, ST` request | 1 per end | Unique index on `place (state, search_key)`; no sorting. |
+| Coordinates, street address, health check | 0 | Answered from memory, the cache or the provider. |
+
+Tests in `tests/integration/test_database_access.py` pin these counts and check the query plan.
+
 ## Assumptions
 
 - The truck starts with a full tank unless `start_fuel_gallons` says otherwise, and the cost counts only fuel bought on the way. It arrives with an empty tank.

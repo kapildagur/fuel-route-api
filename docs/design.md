@@ -78,6 +78,7 @@ Priorities follow MoSCoW: M (must), S (should), C (could). Every requirement is 
 | NFR-06 | The server shall refuse to start without an API key, without a secret key outside debug mode, or without stations. | `tests/integration/test_pages_and_startup.py`, `tests/e2e` |
 | NFR-07 | Line and branch coverage shall be at least 95 percent, enforced in CI. | `make test-all` |
 | NFR-08 | A plan for the 2,776-mile New York to Los Angeles route shall be at most 64 KB. | `test_cross_country_response_stays_lean` |
+| NFR-09 | A plan request shall run at most two database queries, each served by the unique `(state, search_key)` index; requests with coordinates and the health check shall run none. | `tests/integration/test_database_access.py` |
 
 ## 4. Architecture
 
@@ -153,6 +154,7 @@ Each error class carries a stable `code`, and `problem_exception_handler` maps i
 | --- | --- |
 | Start-up | Settings are parsed when the process starts, and a malformed number stops it. `fuelroute.startup.prepare_application`, called from `wsgi.py`, checks the keys and builds the station index, so the first request does not pay for it and a broken deploy never serves. |
 | State | The service and the station index are built once per process and never change, so threads share them without locks. Per-request data stays on the stack. |
+| Database | Stations are read once at start-up, in one query that selects only the columns the index needs. A request then queries only the `place` table, at most once per end, through the unique `(state, search_key)` index. |
 | Caching | Routes and geocoding answers are cached for an hour in Django's local-memory cache, at most 256 entries, because request input decides the keys. A deployment with several processes should point the `routes` cache at Redis. |
 | Security | Input is bounded and validated before any call. The API key travels in a header, never in a URL or a log. Responses carry a Content Security Policy; the map page loads Leaflet with a pinned integrity hash. See [SECURITY.md](../SECURITY.md). |
 | Observability | One logger tree, `fuelroute`. Each provider call logs its path, status, attempt and duration; each plan logs its distance, station count, stops, cost and duration. Locations are not logged, because a street address can identify a person. |
@@ -224,6 +226,7 @@ A change enters review when `make check` passes. It can merge when three conditi
 | NFR-06 | `test_startup_without_an_api_key_fails`, `test_startup_without_stations_fails`, `test_server_refuses_to_start_without_an_api_key` |
 | NFR-07 | CI job "Tests on Python" running `make test-all` |
 | NFR-08 | `test_cross_country_response_stays_lean`, `test_every_dropped_point_stays_within_the_tolerance`, `test_a_turnaround_on_the_same_line_is_kept` |
+| NFR-09 | `test_plan_between_two_towns_runs_two_queries`, `test_plan_between_coordinates_runs_no_query`, `test_town_lookup_is_served_by_the_unique_index`, `test_station_index_loads_in_one_query` |
 
 ### 6.5 Test data
 

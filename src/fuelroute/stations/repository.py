@@ -26,6 +26,18 @@ __all__ = ["DatabasePlaceDirectory", "ImportReport", "import_station_data", "loa
 
 logger = logging.getLogger(__name__)
 
+_STATION_FIELDS = (
+    "station_id",
+    "name",
+    "address",
+    "city",
+    "state",
+    "price_per_gallon",
+    "latitude",
+    "longitude",
+)
+"""The columns the index needs; rack and location source stay in the table."""
+
 
 @dataclass(frozen=True, slots=True)
 class ImportReport:
@@ -44,14 +56,17 @@ class DatabasePlaceDirectory:
 
     def find(self, name: str, state: str) -> ResolvedLocation | None:
         """Return the town, or ``None`` when the table does not hold it."""
-        place = PlaceModel.objects.filter(state=state.upper(), search_key=place_key(name)).first()
-        if place is None:
-            return None
-        return ResolvedLocation(
-            label=f"{place.name}, {place.state}",
-            coordinate=Coordinate(place.latitude, place.longitude),
-            source=LocationSource.PLACE_DIRECTORY,
-        )
+        # (state, search_key) is unique and indexed, so the lookup needs no ORDER BY.
+        rows = PlaceModel.objects.filter(
+            state=state.upper(), search_key=place_key(name)
+        ).values_list("name", "state", "latitude", "longitude")[:1]
+        for place_name, place_state, latitude, longitude in rows:
+            return ResolvedLocation(
+                label=f"{place_name}, {place_state}",
+                coordinate=Coordinate(latitude, longitude),
+                source=LocationSource.PLACE_DIRECTORY,
+            )
+        return None
 
 
 def load_station_index() -> StationIndex:
@@ -66,7 +81,9 @@ def load_station_index() -> StationIndex:
             price_per_gallon=row.price_per_gallon,
             location=Coordinate(row.latitude, row.longitude),
         )
-        for row in FuelStationModel.objects.order_by("station_id").iterator(chunk_size=2000)
+        for row in FuelStationModel.objects.only(*_STATION_FIELDS)
+        .order_by("station_id")
+        .iterator(chunk_size=2000)
     ]
     return StationIndex(stations)
 
