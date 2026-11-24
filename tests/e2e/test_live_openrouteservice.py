@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import os
+from typing import TYPE_CHECKING
 
 import pytest
 
 from fuelroute.core.geo import Coordinate
 from fuelroute.providers.openrouteservice import OpenRouteServiceClient
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 pytestmark = [
     pytest.mark.live,
@@ -19,8 +23,10 @@ pytestmark = [
 
 
 @pytest.fixture
-def client() -> OpenRouteServiceClient:
-    return OpenRouteServiceClient(api_key=os.environ["ORS_API_KEY"])
+def client() -> Iterator[OpenRouteServiceClient]:
+    client = OpenRouteServiceClient(api_key=os.environ["ORS_API_KEY"])
+    yield client
+    client.close()
 
 
 def test_real_truck_route_from_chicago_to_dallas(client: OpenRouteServiceClient) -> None:

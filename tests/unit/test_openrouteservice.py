@@ -56,6 +56,8 @@ def test_route_request_carries_the_key_profile_and_points() -> None:
     (request,) = seen
     assert request.url.path == "/v2/directions/driving-car/geojson"
     assert request.headers["Authorization"] == "secret-key"
+    # The GeoJSON endpoint answers 406 unless the client accepts application/geo+json.
+    assert "application/geo+json" in request.headers["Accept"]
     body = json.loads(request.content)
     assert body["coordinates"] == [[-87.6298, 41.8781], [-96.797, 32.7767]]
     assert body["geometry_simplify"] is True

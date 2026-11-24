@@ -46,6 +46,11 @@ class FakeOpenRouteService:
         if handler.command == "POST" and url.path.startswith("/v2/directions/"):
             length = int(handler.headers.get("Content-Length", "0"))
             handler.rfile.read(length)
+            accept = handler.headers.get("Accept", "*/*")
+            if "application/geo+json" not in accept and "*/*" not in accept:
+                # The real service refuses a GeoJSON route to a client that does not accept it.
+                body = {"error": {"code": 2007, "message": "This response format is not supported"}}
+                return HTTPStatus.NOT_ACCEPTABLE, body
             if self.route_status != HTTPStatus.OK:
                 body = {"error": {"code": 2009, "message": "Route could not be found"}}
                 return self.route_status, body

@@ -40,6 +40,9 @@ _HTTP_TOO_MANY_REQUESTS: Final = 429
 _HTTP_SERVER_ERROR: Final = 500
 _HTTP_CLIENT_ERROR: Final = 400
 _AUTH_STATUSES: Final = frozenset({401, 403})
+# Both endpoints answer in GeoJSON and the directions endpoint returns 406 to a client
+# that accepts only application/json; errors come back as plain JSON.
+_ACCEPT: Final = "application/geo+json, application/json"
 
 
 class OpenRouteServiceClient:
@@ -67,7 +70,7 @@ class OpenRouteServiceClient:
         self._max_attempts = max(1, max_attempts)
         self._client = httpx.Client(
             base_url=base_url,
-            headers={"Authorization": api_key, "Accept": "application/json"},
+            headers={"Authorization": api_key, "Accept": _ACCEPT},
             timeout=httpx.Timeout(timeout_seconds, connect=min(timeout_seconds, 3.0)),
             transport=transport,
         )

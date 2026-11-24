@@ -2,7 +2,7 @@
 
 | Document | Version | Status | Owner | Last updated |
 | --- | --- | --- | --- | --- |
-| Design of the fuel route API | 0.1 | Draft | fuel-route-api contributors | 2026-11-24 |
+| Design of the fuel route API | 0.2 | Draft | fuel-route-api contributors | 2026-11-24 |
 
 ## 1. Purpose
 
@@ -111,7 +111,7 @@ The core defines three ports, `RoutingProvider`, `Geocoder` and `PlaceDirectory`
 
 On a fixed route the stations form a line, and a greedy rule gives the lowest cost. The rule comes from Khuller, Malekian and Mestre, "To fill or not to fill: The gas station problem" (ACM Transactions on Algorithms, 2011). At each station the planner looks ahead one full tank. If a cheaper station lies within that distance, it buys exactly enough fuel to reach the first such station. Otherwise it fills the tank and drives to the cheapest station within range. The finish counts as the cheapest point of all, so the truck arrives with an empty tank. The run takes linear time apart from the scan for the cheapest station in range.
 
-The lowest-cost plan can stop for one gallon to save a few cents. A second pass removes each stop's station in turn, smallest purchase first. It keeps the plan without the station when that plan has fewer stops and costs less than `min_stop_saving` more per stop removed. On the recorded New York to Los Angeles route, this cuts 14 stops to 11 for $0.96 more. A request with `min_stop_saving=0` gets the lowest-cost plan unchanged.
+The lowest-cost plan can stop for one gallon to save a few cents. A second pass removes each stop's station in turn, smallest purchase first. It keeps the plan without the station when that plan has fewer stops and costs less than `min_stop_saving` more per stop removed. On the recorded New York to Los Angeles truck route, this cuts 10 stops to 8 for $0.78 more. A request with `min_stop_saving=0` gets the lowest-cost plan unchanged.
 
 ### 4.3 Station data
 
@@ -155,7 +155,7 @@ Each error class carries a stable `code`, and `problem_exception_handler` maps i
 | Caching | Routes and geocoding answers are cached for an hour in Django's local-memory cache, at most 256 entries, because request input decides the keys. A deployment with several processes should point the `routes` cache at Redis. |
 | Security | Input is bounded and validated before any call. The API key travels in a header, never in a URL or a log. Responses carry a Content Security Policy; the map page loads Leaflet with a pinned integrity hash. See [SECURITY.md](../SECURITY.md). |
 | Observability | One logger tree, `fuelroute`. Each provider call logs its path, status, attempt and duration; each plan logs its distance, station count, stops, cost and duration. Locations are not logged, because a street address can identify a person. |
-| Performance | Matching takes about 12 ms and planning about 30 ms for a 2,800-mile route on a laptop; the provider call takes most of the response time. |
+| Performance | Matching takes 20 to 30 ms and planning about 12 ms for the 2,776-mile recorded route on a laptop. Calls to the live API took 0.25 to 2.2 s, so the provider sets the response time. |
 
 ## 5. Risks and open issues
 
@@ -165,6 +165,8 @@ Each error class carries a stable `code`, and `problem_exception_handler` maps i
 | OI-02 | The detour to a station is not counted. | The real fuel used is a little higher than reported, by at most twice the corridor width per stop. | Add the detour to the planner as a per-stop cost. Planned for 0.2. |
 | OI-03 | The stop-dropping pass is a heuristic. | It does not promise the fewest stops for a given extra cost. | An exact dynamic program over stops, if routes with many stations need it. |
 | OI-04 | The local-memory cache is per process. | Several workers each call the provider once for the same route. | Configure Redis for the `routes` cache in production. |
+| OI-06 | The response carries the full route line: 15,964 points and 343 KB for New York to Los Angeles. | Large responses and Postman examples. | Simplify the line for display, keeping the full line for matching. Planned for 0.2. |
+| OI-07 | The free OpenRouteService plan allows 200 truck routes and 100 geocoding requests a day, per the rate-limit headers on 2026-11-24. | A busy day uses up the quota; requests then fail with `provider_rate_limited`. | The cache absorbs repeats; a paid plan or a self-hosted OpenRouteService removes the limit. |
 | OI-05 | West Coast coverage is thin: 16 stations in California, 29 in Oregon. | Some West Coast routes return `unreachable_segment`. | None in the service; it reports the gap. A fuller price file closes it. |
 
 ### 5.1 Resolved issues
@@ -223,8 +225,8 @@ A change enters review when `make check` passes. It can merge when three conditi
 
 ### 6.5 Test data
 
-Test data is committed as source. `tests/fixtures` holds two route geometries in the OpenRouteService response format, built from OpenStreetMap data, and the unit and integration tests build their stations on a straight test road in code. The end-to-end tests import the committed `data/` files.
+Test data is committed as source. `tests/fixtures` holds two responses recorded from the OpenRouteService `driving-hgv` profile, and the unit and integration tests build their stations on a straight test road in code. The end-to-end tests import the committed `data/` files.
 
 ### 6.6 Risks
 
-The recorded routes come from OpenStreetMap through a different router than OpenRouteService, so their geometry differs slightly from what the service sees in production. The live tests cover the real provider's format.
+The recorded responses age: OpenRouteService can change its format or its routes. The live tests, run with `make test-live`, check the real provider's format. The fake provider in `tests/conftest.py` mirrors its known behaviour, such as answering 406 to a client that does not accept GeoJSON.

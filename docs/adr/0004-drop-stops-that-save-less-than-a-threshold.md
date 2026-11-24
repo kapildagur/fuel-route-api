@@ -10,7 +10,7 @@ Accepted
 
 ## Context
 
-The brief says the optimal location "mostly means cost effective". The plan that is cheapest to the cent stops wherever a slightly cheaper station is near. On the recorded New York to Los Angeles route it makes 14 stops, some for one gallon. A driver loses more in time at such a stop than the few cents it saves.
+The brief says the optimal location "mostly means cost effective". The plan that is cheapest to the cent stops wherever a slightly cheaper station is near. On the recorded New York to Los Angeles truck route it makes 10 stops, some for a few gallons. A driver loses more in time at such a stop than the few cents it saves.
 
 ## Options considered
 
@@ -26,9 +26,9 @@ After the greedy plan, try removing each stop's station, smallest purchase first
 
 ## Consequences
 
-- New York to Los Angeles drops from 14 stops to 11 for $0.96 more; Chicago to Dallas from 4 to 2 for $0.72 more.
+- On the recorded truck routes, New York to Los Angeles drops from 10 stops to 8 for $0.78 more. Chicago to Dallas drops from 4 to 2 for $0.72 more.
 - The extra cost never exceeds the threshold times the stops removed; a property-based test checks this and that every plan stays feasible.
-- The pass runs the planner about 30 times on a cross-country route, about 25 ms.
+- The pass reruns the planner for each candidate stop; on the cross-country route it adds about 12 ms.
 
 ## Related requirements
 

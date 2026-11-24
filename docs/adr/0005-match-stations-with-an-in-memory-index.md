@@ -26,7 +26,7 @@ Load the stations once per process into `StationIndex`, which projects them onto
 
 ## Consequences
 
-- Matching a 2,800-mile route takes about 12 ms.
+- Matching the 2,776-mile recorded route, 15,822 points, takes 20 to 30 ms.
 - Mile markers are accurate to a quarter of a mile.
 - The index is immutable, so threads share it without locks. A new import needs a process restart to be seen.
 - Moving to PostgreSQL later changes only the station loader.

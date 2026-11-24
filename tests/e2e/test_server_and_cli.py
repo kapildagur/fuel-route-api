@@ -130,7 +130,7 @@ def test_server_plans_chicago_to_dallas_over_http(
     assert response.status_code == HTTPStatus.OK, response.text
     body = response.json()
     assert body["start"]["source"] == "place_directory"
-    assert body["route"]["distance_miles"] == pytest.approx(966.9, abs=0.1)
+    assert body["route"]["distance_miles"] == pytest.approx(968.3, abs=0.1)
     assert body["summary"]["fuel_stop_count"] >= 1
     assert body["summary"]["stations_considered"] > 100
     assert (

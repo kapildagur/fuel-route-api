@@ -10,7 +10,7 @@ Documentation: [design](docs/design.md) (requirements, architecture, test plan) 
 - **Lowest-cost plan, without pointless stops.** The planner finds the cheapest purchases for a 50-gallon tank at 10 miles per gallon, then drops any stop that saves less than $5. The response shows the lowest-cost plan's total beside the one returned, and `min_stop_saving=0` returns the lowest-cost plan itself.
 - **Real prices, located offline.** All 6,626 US stations in the supplied OPIS price file are placed at their town from the US Census Bureau Gazetteer and GeoNames. No request geocodes a station.
 - **A map in the browser.** Every response carries a `map_url` that opens a Leaflet map of the route and its numbered stops.
-- **Fast.** Matching stations to a 2,800-mile route and planning take about 45 ms; the routing call takes most of the response time.
+- **Fast.** Matching stations to a 2,800-mile route and planning take about 40 ms. The routing call, 0.25 to 2.2 seconds in tests against the live API, takes most of the response time.
 - **Clear errors.** Every error is an RFC 9457 problem details response with a stable `code`. When a stretch of road has no station in range, the error names the mile where the fuel runs out.
 
 ## Status
@@ -19,7 +19,7 @@ Version 0.1.0, unreleased. The API and the response format may change before 1.0
 
 ## Quick start
 
-You need [uv](https://docs.astral.sh/uv/) and a free [OpenRouteService API key](https://openrouteservice.org/dev/#/signup).
+You need [uv](https://docs.astral.sh/uv/) and a free OpenRouteService API key: create an account at <https://account.heigit.org/signup>. The free plan allows 200 truck routes and 100 geocoding requests a day; repeated requests are served from the cache and do not count.
 
 1. Create your settings file and put your key in `ORS_API_KEY`:
 
@@ -75,7 +75,7 @@ The image builds the station database while it builds, so the container serves o
 
 ### Response
 
-An abridged response for Chicago to Dallas, with the route line cut to two points:
+An abridged response for Chicago to Dallas on the truck route, with the route line cut to two points:
 
 ```json
 {
@@ -83,35 +83,35 @@ An abridged response for Chicago to Dallas, with the route line cut to two point
             "longitude": -87.684939, "source": "place_directory"},
   "finish": {"label": "Dallas, TX", "latitude": 32.793333,
              "longitude": -96.766513, "source": "place_directory"},
-  "route": {"distance_miles": 966.9, "duration_hours": 17.1},
+  "route": {"distance_miles": 922.2, "duration_hours": 18.1},
   "vehicle": {"tank_gallons": 50.0, "miles_per_gallon": 10.0,
               "range_miles": 500.0, "start_fuel_gallons": 50.0},
   "fuel_stops": [
-    {"station_id": 69861, "name": "HUCKS FOOD & FUEL #379",
-     "address": "I-57, EXIT 53", "city": "Marion", "state": "IL",
-     "latitude": 37.734445, "longitude": -88.941164,
-     "mile_marker": 316.6, "distance_from_route_miles": 1.0,
-     "price_per_gallon": 2.929, "gallons": 29.24, "cost": 85.64},
-    {"station_id": 72594, "name": "Quiktrip #7900",
-     "address": "I-30 & FM-989", "city": "Texarkana", "state": "TX",
-     "latitude": 33.449204, "longitude": -94.085008,
-     "mile_marker": 792.4, "distance_from_route_miles": 0.5,
-     "price_per_gallon": 2.85733333, "gallons": 17.45, "cost": 49.86}
+    {"station_id": 2231, "name": "QUIKTRIP #605",
+     "address": "I-270, EXIT 33", "city": "Saint Louis", "state": "MO",
+     "latitude": 38.635699, "longitude": -90.244582,
+     "mile_marker": 294.3, "distance_from_route_miles": 1.3,
+     "price_per_gallon": 2.899, "gallons": 29.429, "cost": 85.31},
+    {"station_id": 64106, "name": "RAPID ROBERTS #122",
+     "address": "SR-43", "city": "Joplin", "state": "MO",
+     "latitude": 37.075218, "longitude": -94.501259,
+     "mile_marker": 574.2, "distance_from_route_miles": 2.1,
+     "price_per_gallon": 2.899, "gallons": 12.794, "cost": 37.09}
   ],
   "summary": {
-    "fuel_stop_count": 2, "gallons_purchased": 46.69,
-    "total_fuel_cost": 135.5, "currency": "USD",
+    "fuel_stop_count": 2, "gallons_purchased": 42.223,
+    "total_fuel_cost": 122.4, "currency": "USD",
     "min_stop_saving": 5.0,
-    "lowest_cost_plan": {"fuel_stop_count": 4, "total_fuel_cost": 134.78},
-    "fuel_used_gallons": 96.69, "arrival_fuel_gallons": 0.0,
-    "stations_considered": 157
+    "lowest_cost_plan": {"fuel_stop_count": 2, "total_fuel_cost": 122.4},
+    "fuel_used_gallons": 92.223, "arrival_fuel_gallons": 0.0,
+    "stations_considered": 160
   },
   "map": {"type": "FeatureCollection", "features": ["..."]},
   "map_url": "http://localhost:8000/map/?start=Chicago%2C+IL&finish=Dallas%2C+TX"
 }
 ```
 
-`total_fuel_cost` is the sum of the stop costs, and each stop's `cost` is its `gallons` times its `price_per_gallon`, rounded to the cent. The truck starts with 50 gallons and buys 46.69, which together cover the 96.69 gallons the trip burns. `map` is a GeoJSON FeatureCollection with the route line, the start, the finish and one point per stop; paste it into any GeoJSON viewer.
+`total_fuel_cost` is the sum of the stop costs, and each stop's `cost` is its `gallons` times its `price_per_gallon`, rounded to the cent. The truck starts with 50 gallons and buys 42.223, which together cover the 92.223 gallons the trip burns. `map` is a GeoJSON FeatureCollection with the route line, the start, the finish and one point per stop; paste it into any GeoJSON viewer.
 
 ### Errors
 
