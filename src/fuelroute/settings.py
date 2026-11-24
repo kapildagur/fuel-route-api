@@ -95,20 +95,46 @@ DATABASES = {
     },
 }
 
-# Request input decides the keys of both caches, so both are bounded. Routes are large
-# and live in their own cache, so throttling counters never push them out.
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "fuelroute-default",
-        "OPTIONS": {"MAX_ENTRIES": 10_000},
-    },
-    "routes": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "fuelroute-routes",
-        "OPTIONS": {"MAX_ENTRIES": 256},
-    },
-}
+_REDIS_SCHEMES = ("redis://", "rediss://", "unix://")
+
+
+def _caches(redis_url: str) -> dict[str, dict[str, object]]:
+    """Return CACHES: per-process memory by default, Redis when ``redis_url`` is set.
+
+    Request input decides the keys of both caches, so both are bounded: by entry count
+    in memory, by the server's maxmemory policy in Redis. Routes are large and have
+    their own cache, so rate-limit counters never push them out. Redis calls time out
+    after half a second, so a slow store degrades to a cache miss instead of a stall.
+    """
+    if not redis_url:
+        return {
+            "default": {
+                "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+                "LOCATION": "fuelroute-default",
+                "OPTIONS": {"MAX_ENTRIES": 10_000},
+            },
+            "routes": {
+                "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+                "LOCATION": "fuelroute-routes",
+                "OPTIONS": {"MAX_ENTRIES": 256},
+            },
+        }
+    if not redis_url.startswith(_REDIS_SCHEMES):
+        msg = f"REDIS_URL must start with redis://, rediss:// or unix://, got {redis_url!r}."
+        raise ImproperlyConfigured(msg)
+    options = {"socket_connect_timeout": 0.5, "socket_timeout": 0.5}
+    return {
+        alias: {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": redis_url,
+            "KEY_PREFIX": f"fuelroute-{alias}",
+            "OPTIONS": options,
+        }
+        for alias in ("default", "routes")
+    }
+
+
+CACHES = _caches(os.environ.get("REDIS_URL", "").strip())
 
 USE_TZ = True
 TIME_ZONE = "UTC"
@@ -140,7 +166,7 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
     "UNAUTHENTICATED_USER": None,
-    "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.AnonRateThrottle"],
+    "DEFAULT_THROTTLE_CLASSES": ["fuelroute.api.throttling.FailOpenAnonRateThrottle"],
     "DEFAULT_THROTTLE_RATES": {"anon": os.environ.get("FUELROUTE_RATE_LIMIT", "60/minute")},
     "EXCEPTION_HANDLER": "fuelroute.api.errors.problem_exception_handler",
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",

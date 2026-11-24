@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from decimal import Decimal
 
 import pytest
 from django.core.cache.backends.locmem import LocMemCache
+from redis.exceptions import ConnectionError as RedisConnectionError
+from rest_framework.request import Request
+from rest_framework.test import APIRequestFactory
+from rest_framework.views import APIView
 
 from fuelroute.api.caching import CachedGeocoder, CachedRoutingProvider
 from fuelroute.api.geojson import fuel_plan_feature_collection
+from fuelroute.api.throttling import FailOpenAnonRateThrottle
 from fuelroute.core.geo import Coordinate, Route
 from fuelroute.core.locations import LocationSource, ResolvedLocation
 from fuelroute.core.planner import FuelStop, StopPlan, Vehicle
@@ -119,3 +125,73 @@ def test_tolerance_of_zero_returns_the_full_route_line() -> None:
     )
     collection = fuel_plan_feature_collection(plan, tolerance_meters=0)
     assert len(collection["features"][0]["geometry"]["coordinates"]) == len(route.path)
+
+
+class FailingCache(LocMemCache):
+    """A cache whose store is down, as when Redis cannot be reached."""
+
+    def get(self, *_args: object, **_kwargs: object) -> object:
+        raise RedisConnectionError("connection refused")
+
+    def set(self, *_args: object, **_kwargs: object) -> None:
+        raise RedisConnectionError("connection refused")
+
+
+@pytest.fixture
+def failing_cache() -> FailingCache:
+    return FailingCache("failing", {})
+
+
+def test_packed_route_comes_back_equal(cache: LocMemCache) -> None:
+    route = road_route(300, points=40)
+    provider = CountingRouting()
+    cached = CachedRoutingProvider(provider, cache, namespace="ors:test", timeout_seconds=60)
+    key_start, key_finish = route.path[0], route.path[-1]
+    provider_route = cached.route(key_start, key_finish)
+    assert cached.route(key_start, key_finish) == provider_route
+    assert provider.calls == 1
+
+
+def test_value_in_an_old_format_is_a_miss(cache: LocMemCache) -> None:
+    provider = CountingRouting()
+    cached = CachedRoutingProvider(provider, cache, namespace="ors:test", timeout_seconds=60)
+    start, finish = Coordinate(40, -100), Coordinate(41, -99)
+    key = "route:v2:ors:test:40.00000,-100.00000:41.00000,-99.00000"
+    cache.set(key, Route(path=(start, finish), distance_miles=1, duration_seconds=1))
+    cached.route(start, finish)
+    assert provider.calls == 1
+
+
+def test_route_cache_outage_falls_back_to_the_provider(
+    failing_cache: FailingCache, caplog: pytest.LogCaptureFixture
+) -> None:
+    provider = CountingRouting()
+    cached = CachedRoutingProvider(
+        provider, failing_cache, namespace="ors:test", timeout_seconds=60
+    )
+    logging.getLogger("fuelroute").addHandler(caplog.handler)
+    try:
+        route = cached.route(Coordinate(40, -100), Coordinate(41, -99))
+    finally:
+        logging.getLogger("fuelroute").removeHandler(caplog.handler)
+    assert route.distance_miles == 1
+    assert provider.calls == 1
+    assert "cache read failed" in caplog.text
+    assert "cache write failed" in caplog.text
+
+
+def test_geocode_cache_outage_falls_back_to_the_geocoder(failing_cache: FailingCache) -> None:
+    place = ResolvedLocation("1 Main St", Coordinate(38, -98), LocationSource.GEOCODER)
+    geocoder = CountingGeocoder({"1 Main St": place})
+    cached = CachedGeocoder(geocoder, failing_cache, timeout_seconds=60)
+    assert cached.geocode("1 Main St") == place
+    assert geocoder.calls == ["1 Main St"]
+
+
+def test_rate_limit_lets_requests_through_when_its_store_fails(
+    failing_cache: FailingCache,
+) -> None:
+    throttle = FailOpenAnonRateThrottle()
+    throttle.cache = failing_cache
+    request = Request(APIRequestFactory().get("/api/v1/fuel-plan"))
+    assert throttle.allow_request(request, APIView()) is True

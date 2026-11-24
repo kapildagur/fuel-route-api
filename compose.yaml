@@ -1,4 +1,5 @@
-# Runs the API on http://localhost:8000 with the settings from .env.
+# Runs the API on http://localhost:8000 with the settings from .env, sharing one Redis
+# for the route cache and the rate limit across workers.
 # .env must set ORS_API_KEY and, because DEBUG is off here, DJANGO_SECRET_KEY.
 services:
   api:
@@ -10,6 +11,21 @@ services:
     environment:
       DJANGO_DEBUG: "false"
       DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1"
+      REDIS_URL: "redis://redis:6379/0"
+    depends_on:
+      redis:
+        condition: service_healthy
     read_only: true
     tmpfs:
       - /tmp
+
+  redis:
+    image: redis:8.12-alpine
+    # A cache, not a store: bounded memory, least-recently-used eviction, no persistence.
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru",
+              "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5

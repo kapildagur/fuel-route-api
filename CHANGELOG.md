@@ -15,5 +15,6 @@ All notable changes to this project are recorded here. The format follows [Keep 
 - `/healthz` and the OpenAPI schema at `/api/schema/`.
 - `manage.py import_stations` loads the 6,626 US stations of the OPIS price file, and `manage.py build_places` rebuilds the town coordinates from the Census Bureau Gazetteer and GeoNames.
 - Routes and geocoding answers are cached for an hour, so a repeated request makes no provider call.
-- A Docker image and `compose.yaml` that serve the API with the station database built in.
+- `REDIS_URL` moves the route cache and the rate limit to a shared Redis. A Redis outage does not fail requests.
+- A Docker image and `compose.yaml` that serve the API with the station database built in, and Redis for the cache.
 - A Postman collection with tests and saved example responses, and `postman/routes.csv` to run a batch of routes in the Collection Runner.

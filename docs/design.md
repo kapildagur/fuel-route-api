@@ -2,7 +2,7 @@
 
 | Document | Version | Status | Owner | Last updated |
 | --- | --- | --- | --- | --- |
-| Design of the fuel route API | 0.3 | Draft | fuel-route-api contributors | 2026-11-24 |
+| Design of the fuel route API | 0.4 | Draft | fuel-route-api contributors | 2026-11-24 |
 
 ## 1. Purpose
 
@@ -155,7 +155,7 @@ Each error class carries a stable `code`, and `problem_exception_handler` maps i
 | Start-up | Settings are parsed when the process starts, and a malformed number stops it. `fuelroute.startup.prepare_application`, called from `wsgi.py`, checks the keys and builds the station index, so the first request does not pay for it and a broken deploy never serves. |
 | State | The service and the station index are built once per process and never change, so threads share them without locks. Per-request data stays on the stack. |
 | Database | Stations are read once at start-up, in one query that selects only the columns the index needs. A request then queries only the `place` table, at most once per end, through the unique `(state, search_key)` index. |
-| Caching | Routes and geocoding answers are cached for an hour in Django's local-memory cache, at most 256 entries, because request input decides the keys. A deployment with several processes should point the `routes` cache at Redis. |
+| Caching | Routes and geocoding answers are cached for an hour. Without `REDIS_URL` the cache is per process, at most 256 entries, because request input decides the keys. With it, every worker shares one Redis, bounded by its memory limit ([ADR-0007](adr/0007-share-the-cache-through-redis-when-configured.md)). A cache failure counts as a miss and never fails a request. |
 | Security | Input is bounded and validated before any call. The API key travels in a header, never in a URL or a log. Responses carry a Content Security Policy; the map page loads Leaflet with a pinned integrity hash. See [SECURITY.md](../SECURITY.md). |
 | Observability | One logger tree, `fuelroute`. Each provider call logs its path, status, attempt and duration; each plan logs its distance, station count, stops, cost and duration. Locations are not logged, because a street address can identify a person. |
 | Performance | Matching takes 20 to 30 ms and planning about 12 ms for the 2,776-mile recorded route on a laptop. Calls to the live API took 0.25 to 2.2 s, so the provider sets the response time. |
@@ -167,7 +167,6 @@ Each error class carries a stable `code`, and `problem_exception_handler` maps i
 | OI-01 | Stations are placed at their town, not their exit. | In a large city a station can sit 10 miles from its town's point and fall outside the corridor, or inside it when it is on another road. | Geocode interstate exits from OpenStreetMap motorway junctions. Planned for 0.2. |
 | OI-02 | The detour to a station is not counted. | The real fuel used is a little higher than reported, by at most twice the corridor width per stop. | Add the detour to the planner as a per-stop cost. Planned for 0.2. |
 | OI-03 | The stop-dropping pass is a heuristic. | It does not promise the fewest stops for a given extra cost. | An exact dynamic program over stops, if routes with many stations need it. |
-| OI-04 | The local-memory cache is per process. | Several workers each call the provider once for the same route. | Configure Redis for the `routes` cache in production. |
 | OI-07 | The free OpenRouteService plan allows 200 truck routes and 100 geocoding requests a day, per the rate-limit headers on 2026-11-24. | A busy day uses up the quota; requests then fail with `provider_rate_limited`. | The cache absorbs repeats; a paid plan or a self-hosted OpenRouteService removes the limit. |
 | OI-05 | West Coast coverage is thin: 16 stations in California, 29 in Oregon. | Some West Coast routes return `unreachable_segment`. | None in the service; it reports the gap. A fuller price file closes it. |
 
@@ -178,6 +177,7 @@ Each error class carries a stable `code`, and `problem_exception_handler` maps i
 | Does the vehicle start full or empty? | Full by default; the request can set `start_fuel_gallons` (A-01). |
 | Which price applies when a station ID repeats? | The lowest (A-05). |
 | Should the plan be the cheapest to the cent? | It drops stops that save less than $5 by default, and reports the lowest-cost plan beside it (FUEL-05). |
+| Must several workers share one cache? (OI-04) | Yes, when `REDIS_URL` is set: routes, geocoding answers and rate-limit counters move to Redis ([ADR-0007](adr/0007-share-the-cache-through-redis-when-configured.md)). |
 | Must a response carry the full route line? (OI-06) | No. The line is simplified to within 50 m for display, which takes New York to Los Angeles from 15,822 points and about 340 KB to 2,243 points and under 64 KB (RTE-02, NFR-08). |
 
 ## 6. Test plan
@@ -187,7 +187,7 @@ Each error class carries a stable `code`, and `problem_exception_handler` maps i
 | Level | Directory | What runs | Environment |
 | --- | --- | --- | --- |
 | Unit | `tests/unit` | Core, data readers, the OpenRouteService client with `httpx.MockTransport`, caching wrappers, settings parsers. | No database, no network. |
-| Integration | `tests/integration` | The Django app in process: views, serializers, commands, repository, start-up checks, against SQLite in memory and a fake OpenRouteService on a local port. | pytest-django. |
+| Integration | `tests/integration` | The Django app in process: views, serializers, commands, repository, start-up checks, against SQLite in memory and a fake OpenRouteService on a local port. Cache tests run against a real Redis. | pytest-django; Testcontainers starts Redis, and those tests skip without Docker. |
 | End-to-end | `tests/e2e` | `manage.py migrate` and `import_stations` as subprocesses on the committed data, then gunicorn as a subprocess, called over HTTP. | Fake OpenRouteService serving the recorded Chicago to Dallas route. |
 | Live | `tests/e2e/test_live_openrouteservice.py` | Two calls to the real OpenRouteService. | Opt-in: `ORS_API_KEY` and `FUELROUTE_LIVE_TESTS=1`, `make test-live`. |
 | Benchmark | `tests/benchmarks` | NFR-01 on the recorded New York to Los Angeles route and the full station set. | `make bench`. |
@@ -219,10 +219,10 @@ A change enters review when `make check` passes. It can merge when three conditi
 | DATA-01 | `test_selection_keeps_us_rows_and_the_lowest_price_per_station`, `test_build_matches_each_station_town_from_the_first_source_that_knows_it` |
 | DATA-02 | `test_failed_import_keeps_the_old_data`, `test_import_replaces_the_previous_data` |
 | NFR-01 | `test_cross_country_plan_fits_the_budget` |
-| NFR-02 | `test_repeat_request_is_served_from_the_cache`, `test_same_points_are_routed_once`, `test_geocoding_misses_are_cached_too` |
+| NFR-02 | `test_repeat_request_is_served_from_the_cache`, `test_same_points_are_routed_once`, `test_geocoding_misses_are_cached_too`, `test_repeat_request_is_served_from_redis`, `test_unreachable_redis_still_answers_from_the_provider` |
 | NFR-03 | `test_gateway_error_is_retried_once`, `test_timeout_is_retried_then_reported`, `test_connection_failure_is_retried_then_reported` |
 | NFR-04 | `test_invalid_parameters_are_a_problem_response`, `test_unexpected_error_becomes_an_opaque_problem` |
-| NFR-05 | `test_query_longer_than_the_limit_is_rejected`, `test_throttled_client_gets_a_problem_with_retry_after` |
+| NFR-05 | `test_query_longer_than_the_limit_is_rejected`, `test_throttled_client_gets_a_problem_with_retry_after`, `test_rate_limit_counts_in_redis`, `test_rate_limit_lets_requests_through_when_its_store_fails` |
 | NFR-06 | `test_startup_without_an_api_key_fails`, `test_startup_without_stations_fails`, `test_server_refuses_to_start_without_an_api_key` |
 | NFR-07 | CI job "Tests on Python" running `make test-all` |
 | NFR-08 | `test_cross_country_response_stays_lean`, `test_every_dropped_point_stays_within_the_tolerance`, `test_a_turnaround_on_the_same_line_is_kept` |

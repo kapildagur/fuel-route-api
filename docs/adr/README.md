@@ -10,3 +10,4 @@ Each record states one decision, the options weighed, and what follows from it. 
 | [ADR-0004](0004-drop-stops-that-save-less-than-a-threshold.md) | Drop stops that save less than a threshold | Accepted | 2026-11-24 |
 | [ADR-0005](0005-match-stations-with-an-in-memory-index.md) | Match stations with an in-memory index | Accepted | 2026-11-24 |
 | [ADR-0006](0006-resolve-towns-locally-and-cache-provider-answers.md) | Resolve towns locally and cache provider answers | Accepted | 2026-11-24 |
+| [ADR-0007](0007-share-the-cache-through-redis-when-configured.md) | Share the cache through Redis when configured | Accepted | 2026-11-24 |

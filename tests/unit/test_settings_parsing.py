@@ -56,3 +56,25 @@ def test_number_setting_out_of_bounds_stops_the_process(
 def test_list_setting_drops_blank_items(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOSTS", " a.example , ,b.example,")
     assert project_settings._env_list("HOSTS", default="") == ["a.example", "b.example"]
+
+
+def test_without_redis_both_caches_live_in_process_memory() -> None:
+    caches = project_settings._caches("")
+    assert {alias: cache["BACKEND"] for alias, cache in caches.items()} == {
+        "default": "django.core.cache.backends.locmem.LocMemCache",
+        "routes": "django.core.cache.backends.locmem.LocMemCache",
+    }
+
+
+def test_redis_url_moves_both_caches_to_redis_with_short_timeouts() -> None:
+    caches = project_settings._caches("redis://cache:6379/0")
+    for alias in ("default", "routes"):
+        assert caches[alias]["BACKEND"] == "django.core.cache.backends.redis.RedisCache"
+        assert caches[alias]["LOCATION"] == "redis://cache:6379/0"
+        assert caches[alias]["KEY_PREFIX"] == f"fuelroute-{alias}"
+        assert caches[alias]["OPTIONS"] == {"socket_connect_timeout": 0.5, "socket_timeout": 0.5}
+
+
+def test_redis_url_with_another_scheme_stops_the_process() -> None:
+    with pytest.raises(ImproperlyConfigured, match="REDIS_URL must start with redis://"):
+        project_settings._caches("http://cache:6379")
