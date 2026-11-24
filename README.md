@@ -12,6 +12,7 @@ Documentation: [design](docs/design.md) (requirements, architecture, test plan) 
 - **A map in the browser.** Every response carries a `map_url` that opens a Leaflet map of the route and its numbered stops.
 - **Lean responses.** The route line is simplified to within 50 m for display. New York to Los Angeles comes back in under 64 KB instead of about 340 KB, while stations are still matched against the full line.
 - **Fast.** Matching stations to a 2,800-mile route and planning take about 40 ms. The routing call, 0.25 to 2.2 seconds in tests against the live API, takes most of the response time.
+- **PostgreSQL in production, SQLite on a laptop.** Set `DATABASE_URL` for PostgreSQL; without it the project runs on a SQLite file with no server. The tests pass on both.
 - **Shared cache when you need it.** Set `REDIS_URL` and every worker shares one Redis for routes, geocoding answers and the rate limit. If Redis goes down, requests still succeed through the provider.
 - **Clear errors.** Every error is an RFC 9457 problem details response with a stable `code`. When a stretch of road has no station in range, the error names the mile where the fuel runs out.
 
@@ -60,7 +61,7 @@ To run it in Docker instead, set `ORS_API_KEY` and `DJANGO_SECRET_KEY` in `.env`
 docker compose up --build
 ```
 
-The image builds the station database while it builds, so the container serves on <http://localhost:8000> within a second of starting. Compose also starts Redis for the shared cache.
+Compose starts PostgreSQL and Redis, imports the stations into PostgreSQL, then serves the API on <http://localhost:8000>. The image also runs on its own (`docker run -e ORS_API_KEY=... -p 8000:8000 fuel-route-api:local`) with the SQLite database it builds in.
 
 ## Using the API
 
@@ -151,7 +152,7 @@ To run a batch of routes, open the Collection Runner, choose the "Data-driven" f
 
 | When | Queries | How |
 | --- | --- | --- |
-| Server start | 1 | Every station, only the columns the matcher needs, into an in-memory index. |
+| Server start | 1 | Every station, only the columns the matcher needs, into an in-memory index. The same counts hold on PostgreSQL and SQLite. |
 | `City, ST` request | 1 per end | Unique index on `place (state, search_key)`; no sorting. |
 | Coordinates, street address, health check | 0 | Answered from memory, the cache or the provider. |
 
@@ -185,7 +186,8 @@ Settings come from the environment or from `.env`; [.env.example](.env.example) 
 | `FUELROUTE_CACHE_SECONDS` | `3600` | How long routes and geocoding answers are cached. |
 | `FUELROUTE_RATE_LIMIT` | `60/minute` | Requests allowed per client address. |
 | `REDIS_URL` | none (per-process memory) | Redis for the shared cache and rate limit, for example `redis://localhost:6379/0`. |
-| `DATABASE_PATH` | `var/fuelroute.sqlite3` | SQLite database file. |
+| `DATABASE_URL` | none (SQLite) | PostgreSQL to use instead of SQLite, for example `postgres://user:password@host:5432/fuelroute`. |
+| `DATABASE_PATH` | `var/fuelroute.sqlite3` | SQLite database file, used when `DATABASE_URL` is not set. |
 
 ## Data
 

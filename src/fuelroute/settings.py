@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.csp import CSP
 from dotenv import load_dotenv
@@ -88,12 +89,29 @@ TEMPLATES = [
     },
 ]
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": os.environ.get("DATABASE_PATH", str(BASE_DIR / "var" / "fuelroute.sqlite3")),
-    },
-}
+_POSTGRES_SCHEMES = ("postgres://", "postgresql://")
+
+
+def _databases(database_url: str, sqlite_path: str) -> dict[str, dict[str, object]]:
+    """Return DATABASES: PostgreSQL when ``database_url`` is set, else a SQLite file.
+
+    SQLite lets a checkout run with no database server; production uses PostgreSQL.
+    Connections are kept for 60 seconds and checked before reuse, so a restarted
+    database costs one failed check instead of a failed request.
+    """
+    if not database_url:
+        return {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": sqlite_path}}
+    if not database_url.startswith(_POSTGRES_SCHEMES):
+        msg = "DATABASE_URL must be a PostgreSQL URL (postgres:// or postgresql://)."
+        raise ImproperlyConfigured(msg)
+    config = dj_database_url.parse(database_url, conn_max_age=60, conn_health_checks=True)
+    return {"default": dict(config)}
+
+
+DATABASES = _databases(
+    os.environ.get("DATABASE_URL", "").strip(),
+    os.environ.get("DATABASE_PATH", str(BASE_DIR / "var" / "fuelroute.sqlite3")),
+)
 
 _REDIS_SCHEMES = ("redis://", "rediss://", "unix://")
 

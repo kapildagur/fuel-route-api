@@ -2,7 +2,7 @@
 
 | Document | Version | Status | Owner | Last updated |
 | --- | --- | --- | --- | --- |
-| Design of the fuel route API | 0.4 | Draft | fuel-route-api contributors | 2026-11-24 |
+| Design of the fuel route API | 0.5 | Draft | fuel-route-api contributors | 2026-11-24 |
 
 ## 1. Purpose
 
@@ -79,6 +79,7 @@ Priorities follow MoSCoW: M (must), S (should), C (could). Every requirement is 
 | NFR-07 | Line and branch coverage shall be at least 95 percent, enforced in CI. | `make test-all` |
 | NFR-08 | A plan for the 2,776-mile New York to Los Angeles route shall be at most 64 KB. | `test_cross_country_response_stays_lean` |
 | NFR-09 | A plan request shall run at most two database queries, each served by the unique `(state, search_key)` index; requests with coordinates and the health check shall run none. | `tests/integration/test_database_access.py` |
+| NFR-10 | The service shall run on PostgreSQL 18 when `DATABASE_URL` is set, and on SQLite otherwise, with the same tests passing on both. | CI jobs "Tests on Python" and "Tests on PostgreSQL" |
 
 ## 4. Architecture
 
@@ -148,7 +149,20 @@ Each error class carries a stable `code`, and `problem_exception_handler` maps i
 | `provider_timeout` | 504 | OpenRouteService did not answer in time. |
 | `internal_error` | 500 | Any other failure. The details are logged, not returned. |
 
-### 4.5 Cross-cutting concerns
+### 4.5 Deployment
+
+`compose.yaml` runs the production shape on one machine:
+
+| Service | Image | Role |
+| --- | --- | --- |
+| `api` | `fuel-route-api` | gunicorn with 2 workers and 4 threads each, read-only file system, port 8000. |
+| `setup` | `fuel-route-api` | Runs `migrate` and `import_stations` once, then exits; `api` waits for it to succeed. |
+| `postgres` | `postgres:18.7-alpine` | The `place` and `fuel_station` tables ([ADR-0008](adr/0008-store-data-in-postgresql-in-production-and-sqlite-in-development.md)). |
+| `redis` | `redis:8.12-alpine` | The shared cache and rate-limit counters, 128 MB, least-recently-used eviction, no persistence ([ADR-0007](adr/0007-share-the-cache-through-redis-when-configured.md)). |
+
+Only `api` publishes a port. Without `DATABASE_URL` and `REDIS_URL` the same image runs alone on its built-in SQLite database and per-process cache.
+
+### 4.6 Cross-cutting concerns
 
 | Concern | Design |
 | --- | --- |
@@ -187,7 +201,7 @@ Each error class carries a stable `code`, and `problem_exception_handler` maps i
 | Level | Directory | What runs | Environment |
 | --- | --- | --- | --- |
 | Unit | `tests/unit` | Core, data readers, the OpenRouteService client with `httpx.MockTransport`, caching wrappers, settings parsers. | No database, no network. |
-| Integration | `tests/integration` | The Django app in process: views, serializers, commands, repository, start-up checks, against SQLite in memory and a fake OpenRouteService on a local port. Cache tests run against a real Redis. | pytest-django; Testcontainers starts Redis, and those tests skip without Docker. |
+| Integration | `tests/integration` | The Django app in process: views, serializers, commands, repository, start-up checks, against a fake OpenRouteService on a local port. Cache tests run against a real Redis. | pytest-django on SQLite in memory; `make test-postgres` runs the same tests on PostgreSQL 18. Testcontainers starts Redis and PostgreSQL; tests that need Docker skip without it. |
 | End-to-end | `tests/e2e` | `manage.py migrate` and `import_stations` as subprocesses on the committed data, then gunicorn as a subprocess, called over HTTP. | Fake OpenRouteService serving the recorded Chicago to Dallas route. |
 | Live | `tests/e2e/test_live_openrouteservice.py` | Two calls to the real OpenRouteService. | Opt-in: `ORS_API_KEY` and `FUELROUTE_LIVE_TESTS=1`, `make test-live`. |
 | Benchmark | `tests/benchmarks` | NFR-01 on the recorded New York to Los Angeles route and the full station set. | `make bench`. |
@@ -227,6 +241,7 @@ A change enters review when `make check` passes. It can merge when three conditi
 | NFR-07 | CI job "Tests on Python" running `make test-all` |
 | NFR-08 | `test_cross_country_response_stays_lean`, `test_every_dropped_point_stays_within_the_tolerance`, `test_a_turnaround_on_the_same_line_is_kept` |
 | NFR-09 | `test_plan_between_two_towns_runs_two_queries`, `test_plan_between_coordinates_runs_no_query`, `test_town_lookup_is_served_by_the_unique_index`, `test_station_index_loads_in_one_query` |
+| NFR-10 | `make test-postgres` (CI job "Tests on PostgreSQL"), `test_database_url_selects_postgresql_with_kept_and_checked_connections`, `test_database_url_other_than_postgresql_stops_the_process` |
 
 ### 6.5 Test data
 

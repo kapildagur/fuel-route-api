@@ -11,3 +11,4 @@ Each record states one decision, the options weighed, and what follows from it. 
 | [ADR-0005](0005-match-stations-with-an-in-memory-index.md) | Match stations with an in-memory index | Accepted | 2026-11-24 |
 | [ADR-0006](0006-resolve-towns-locally-and-cache-provider-answers.md) | Resolve towns locally and cache provider answers | Accepted | 2026-11-24 |
 | [ADR-0007](0007-share-the-cache-through-redis-when-configured.md) | Share the cache through Redis when configured | Accepted | 2026-11-24 |
+| [ADR-0008](0008-store-data-in-postgresql-in-production-and-sqlite-in-development.md) | Store data in PostgreSQL in production and SQLite in development | Accepted | 2026-11-24 |

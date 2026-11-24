@@ -1,23 +1,56 @@
-# Runs the API on http://localhost:8000 with the settings from .env, sharing one Redis
-# for the route cache and the rate limit across workers.
+# Runs the API on http://localhost:8000 with PostgreSQL for the data and Redis for the
+# shared cache and rate limit. `setup` migrates and imports the stations, then exits;
+# the API starts once it has succeeded.
 # .env must set ORS_API_KEY and, because DEBUG is off here, DJANGO_SECRET_KEY.
+x-app: &app
+  build: .
+  image: fuel-route-api:local
+  env_file: .env
+  read_only: true
+  tmpfs:
+    - /tmp
+
+x-database-url: &database-url "postgres://fuelroute:${POSTGRES_PASSWORD:-fuelroute-local}@postgres:5432/fuelroute"
+
 services:
   api:
-    build: .
-    image: fuel-route-api:local
+    <<: *app
     ports:
       - "8000:8000"
-    env_file: .env
     environment:
       DJANGO_DEBUG: "false"
       DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1"
+      DATABASE_URL: *database-url
       REDIS_URL: "redis://redis:6379/0"
     depends_on:
+      setup:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
-    read_only: true
-    tmpfs:
-      - /tmp
+
+  setup:
+    <<: *app
+    command: ["sh", "-c", "python manage.py migrate --no-input && python manage.py import_stations"]
+    environment:
+      DATABASE_URL: *database-url
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:18.7-alpine
+    environment:
+      POSTGRES_DB: fuelroute
+      POSTGRES_USER: fuelroute
+      # Local default only; set POSTGRES_PASSWORD in .env for anything shared.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fuelroute-local}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fuelroute -d fuelroute"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   redis:
     image: redis:8.12-alpine
@@ -29,3 +62,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+
+volumes:
+  postgres-data:

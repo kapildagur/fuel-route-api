@@ -17,12 +17,14 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    "dj-database-url>=2.3",
     "django>=6.1",
     "djangorestframework>=3.18",
     "drf-spectacular>=0.29",
     "gunicorn>=23.0",
     "httpx>=0.28",
     "numpy>=2.1",
+    "psycopg[binary]>=3.2",
     "python-dotenv>=1.1",
     "redis>=6.0",
     "scipy>=1.15",

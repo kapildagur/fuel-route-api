@@ -78,3 +78,28 @@ def test_redis_url_moves_both_caches_to_redis_with_short_timeouts() -> None:
 def test_redis_url_with_another_scheme_stops_the_process() -> None:
     with pytest.raises(ImproperlyConfigured, match="REDIS_URL must start with redis://"):
         project_settings._caches("http://cache:6379")
+
+
+def test_without_a_database_url_the_database_is_a_sqlite_file() -> None:
+    databases = project_settings._databases("", "/srv/fuelroute.sqlite3")
+    assert databases == {
+        "default": {"ENGINE": "django.db.backends.sqlite3", "NAME": "/srv/fuelroute.sqlite3"}
+    }
+
+
+def test_database_url_selects_postgresql_with_kept_and_checked_connections() -> None:
+    databases = project_settings._databases(
+        "postgres://fuel:secret@db.internal:5433/fuelroute", "/unused"
+    )
+    default = databases["default"]
+    assert default["ENGINE"] == "django.db.backends.postgresql"
+    assert (default["HOST"], default["PORT"], default["NAME"]) == ("db.internal", 5433, "fuelroute")
+    assert (default["USER"], default["PASSWORD"]) == ("fuel", "secret")
+    assert default["CONN_MAX_AGE"] == 60
+    assert default["CONN_HEALTH_CHECKS"] is True
+
+
+@pytest.mark.parametrize("url", ["mysql://fuel@db/fuelroute", "sqlite:///tmp/x.db"])
+def test_database_url_other_than_postgresql_stops_the_process(url: str) -> None:
+    with pytest.raises(ImproperlyConfigured, match="must be a PostgreSQL URL"):
+        project_settings._databases(url, "/unused")

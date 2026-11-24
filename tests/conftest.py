@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 from dataclasses import dataclass, field
 from http import HTTPStatus
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 _LEVELS = {"unit": "unit", "integration": "integration", "e2e": "e2e", "benchmarks": "benchmark"}
+POSTGRES_IMAGE = "postgres:18.7-alpine"
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
@@ -92,3 +94,42 @@ def fake_ors() -> Iterator[FakeOpenRouteService]:
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+@pytest.fixture(scope="session")
+def django_db_modify_db_settings(
+    django_db_modify_db_settings_parallel_suffix: None,
+) -> Iterator[None]:
+    """Run the database tests on PostgreSQL when FUELROUTE_TEST_POSTGRES=1.
+
+    Testcontainers starts one PostgreSQL for the session before Django creates the test
+    database; without the variable the tests use SQLite in memory.
+    """
+    del django_db_modify_db_settings_parallel_suffix
+    if os.environ.get("FUELROUTE_TEST_POSTGRES") != "1":
+        yield
+        return
+    from django.conf import settings  # noqa: PLC0415  # Django is configured by now
+    from django.db import connections  # noqa: PLC0415  # Django is configured by now
+    from testcontainers.community.postgres import (  # noqa: PLC0415  # only needed on this path
+        PostgresContainer,
+    )
+
+    with PostgresContainer(POSTGRES_IMAGE, driver=None) as container:
+        settings.DATABASES["default"].update(
+            {
+                "ENGINE": "django.db.backends.postgresql",
+                "NAME": container.dbname,
+                "USER": container.username,
+                "PASSWORD": container.password,
+                "HOST": container.get_container_host_ip(),
+                "PORT": container.get_exposed_port(container.port),
+            }
+        )
+        # A wrapper made for SQLite earlier in the session would ignore the new engine.
+        connections["default"].close()
+        del connections["default"]
+        if connections["default"].vendor != "postgresql":
+            msg = "The test database did not switch to PostgreSQL."
+            raise RuntimeError(msg)
+        yield

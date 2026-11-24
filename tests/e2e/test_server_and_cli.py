@@ -31,7 +31,7 @@ def _environment(database: Path, ors_url: str) -> dict[str, str]:
     environment = {
         key: value
         for key, value in os.environ.items()
-        if not key.startswith(("DJANGO_", "ORS_", "FUELROUTE_"))
+        if not key.startswith(("DJANGO_", "ORS_", "FUELROUTE_", "DATABASE_", "REDIS_"))
     }
     environment.update(
         {

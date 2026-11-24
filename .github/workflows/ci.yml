@@ -45,6 +45,16 @@ jobs:
       - run: uv sync --locked
       - run: make test-all
 
+  postgres:
+    name: Tests on PostgreSQL
+    needs: static
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.4.0
+      - run: uv sync --locked
+      - run: make test-postgres
+
   lowest:
     name: Lowest supported dependencies
     needs: static

@@ -10,8 +10,8 @@ DOWNLOADS := .tmp/downloads
 CENSUS_URL := https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer
 GEONAMES_URL := https://download.geonames.org/export/dump/US.zip
 
-.PHONY: help dev fmt lint type check test test-int test-e2e test-all test-live bench \
-        docs diagrams build clean data places run
+.PHONY: help dev fmt lint type check test test-int test-postgres test-e2e test-all test-live \
+        bench docs diagrams build clean data places run
 
 help: ## List the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
@@ -41,6 +41,9 @@ test: ## Run the unit tests
 
 test-int: ## Run the integration tests
 	$(RUN) pytest tests/integration
+
+test-postgres: ## Run unit and integration tests on PostgreSQL (needs Docker)
+	FUELROUTE_TEST_POSTGRES=1 $(RUN) pytest tests/unit tests/integration
 
 test-e2e: ## Run the end-to-end tests (real server and command line)
 	$(RUN) pytest tests/e2e

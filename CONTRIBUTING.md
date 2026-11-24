@@ -4,7 +4,7 @@ Thank you for helping. This page explains how to set up the project, which check
 
 ## Set up
 
-You need [uv](https://docs.astral.sh/uv/), Node.js 20 or later for the Markdown linter, and Docker for the diagrams.
+You need [uv](https://docs.astral.sh/uv/), Node.js 20 or later for the Markdown linter, and Docker for the diagrams and for the tests that start Redis and PostgreSQL.
 
 ```bash
 cp .env.example .env    # then set ORS_API_KEY
@@ -23,6 +23,7 @@ make run                # serves http://127.0.0.1:8000
 | `make check` | `lint` and `type`. |
 | `make test` | Unit tests. |
 | `make test-int` | Integration tests: Django in process with a fake OpenRouteService. |
+| `make test-postgres` | Unit and integration tests on PostgreSQL 18, started by Testcontainers; needs Docker. |
 | `make test-e2e` | gunicorn and the management commands as subprocesses. |
 | `make test-all` | Every level with branch coverage; fails below 95 percent. |
 | `make test-live` | Two calls to the real OpenRouteService; needs `ORS_API_KEY`. |

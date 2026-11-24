@@ -98,7 +98,8 @@ def test_town_lookup_is_served_by_the_unique_index() -> None:
         # that the index can serve the lookup, as it does on the full table.
         with connection.cursor() as cursor:
             cursor.execute("SET LOCAL enable_seqscan = off")
-        assert "Index Scan using place_unique_key" in query.explain()
+        # An index scan or a bitmap index scan, both through the unique constraint.
+        assert "place_unique_key" in query.explain()
     else:
         # SQLite backs the unique constraint with an automatic index of its own name.
         assert "SEARCH place USING INDEX" in query.explain()
