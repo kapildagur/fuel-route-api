@@ -1,0 +1,41 @@
+@startuml activity-fuel-planner
+!include style.iuml
+title How plan_fuel_stops chooses where to buy and how much
+
+start
+:Keep stations with 0 <= mile marker < route distance,
+sorted by mile marker;
+if (Start fuel covers the route?) then (yes)
+  :Return no stops;
+  stop
+endif
+if (First station within the start fuel's reach?) then (no)
+  :Raise UnreachableSegmentError;
+  stop
+endif
+:Drive to the first station;
+repeat
+  :reach = this mile + full-tank range;
+  if (First cheaper station, or the finish,\nwithin reach?) then (yes)
+    :Buy just enough to get there;
+    :Drive there;
+  else (no)
+    if (Any station within reach?) then (no)
+      :Raise UnreachableSegmentError;
+      stop
+    endif
+    :Fill the tank;
+    :Drive to the cheapest station within reach;
+  endif
+repeat while (Finish reached?) is (no) not (yes)
+:Cheapest plan found;
+if (min_stop_saving > 0 and more than one stop?) then (yes)
+  repeat
+    :Try the plan without each stop's station,
+    smallest purchase first;
+  repeat while (A plan with fewer stops costs less than\nmin_stop_saving more per stop removed?) is (yes, keep it) not (no)
+endif
+:Return StopPlan with the stops,
+the lowest cost and its stop count;
+stop
+@enduml

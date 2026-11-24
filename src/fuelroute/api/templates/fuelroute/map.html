@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fuel route plan</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <style nonce="{{ csp_nonce }}">
+    :root { color-scheme: light dark; --accent: #0b6bcb; --on-accent: #ffffff;
+            --muted: #5f6b7a; --border: #d0d7de; }
+    @media (prefers-color-scheme: dark) {
+      :root { --accent: #6cb6ff; --on-accent: #0d1117; --muted: #a0aab4; --border: #3d444d; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 15px/1.45 system-ui, sans-serif; display: grid;
+           grid-template-columns: minmax(300px, 380px) 1fr; height: 100vh; }
+    aside { padding: 1rem 1.25rem; overflow-y: auto; border-right: 1px solid var(--border); }
+    h1 { font-size: 1.25rem; margin: 0 0 .75rem; }
+    h2 { font-size: 1rem; margin: 1.25rem 0 .5rem; }
+    form { display: grid; gap: .5rem; }
+    label { font-weight: 600; font-size: .9rem; }
+    input { width: 100%; padding: .45rem .55rem; font: inherit; border: 1px solid var(--border);
+            border-radius: 6px; background: Canvas; color: CanvasText; }
+    button { padding: .55rem; font: inherit; font-weight: 600; border: 0; border-radius: 6px;
+             background: var(--accent); color: var(--on-accent); cursor: pointer; }
+    .hint { color: var(--muted); font-size: .85rem; margin: 0; }
+    .status { margin-top: 1rem; }
+    .error { color: #d1242f; }
+    dl { display: grid; grid-template-columns: auto 1fr; gap: .2rem .75rem; margin: 0; }
+    dt { color: var(--muted); }
+    dd { margin: 0; font-variant-numeric: tabular-nums; }
+    ol { padding-left: 1.25rem; margin: 0; }
+    li { margin-bottom: .6rem; }
+    .stop-meta { color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
+    #map { height: 100vh; }
+    .stop-icon { background: var(--accent); color: #fff; border-radius: 50%; width: 24px;
+                 height: 24px; line-height: 24px; text-align: center; font-weight: 700;
+                 font-size: 12px; border: 2px solid #fff; }
+    @media (max-width: 760px) {
+      body { grid-template-columns: 1fr; grid-template-rows: auto 60vh; height: auto; }
+      #map { height: 60vh; }
+    }
+  </style>
+</head>
+<body>
+  <aside>
+    <h1>Fuel route plan</h1>
+    <form method="get" action="">
+      <label for="start">Start</label>
+      <input id="start" name="start" maxlength="200" required placeholder="Chicago, IL">
+      <label for="finish">Finish</label>
+      <input id="finish" name="finish" maxlength="200" required placeholder="Dallas, TX">
+      <label for="start_fuel_gallons">Fuel at start (gallons)</label>
+      <input id="start_fuel_gallons" name="start_fuel_gallons" type="number" min="0"
+             max="{{ tank_gallons }}" step="any" placeholder="Full tank ({{ tank_gallons }})">
+      <button type="submit">Plan route</button>
+      <p class="hint">Use "City, ST", "latitude,longitude" or a street address.</p>
+    </form>
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+    <section id="summary" hidden>
+      <h2>Summary</h2>
+      <dl id="summary-list"></dl>
+      <h2>Fuel stops</h2>
+      <ol id="stops"></ol>
+    </section>
+  </aside>
+  <main id="map" aria-label="Route map"></main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script nonce="{{ csp_nonce }}">
+    "use strict";
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      for (const name of ["start", "finish", "start_fuel_gallons"]) {
+        const value = params.get(name);
+        if (value !== null) document.getElementById(name).value = value;
+      }
+      if (!params.get("start_fuel_gallons")) params.delete("start_fuel_gallons");
+
+      const map = L.map("map").setView([39.5, -98.35], 4);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 18,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(map);
+
+      const status = document.getElementById("status");
+      const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+      const price = new Intl.NumberFormat("en-US", {
+        style: "currency", currency: "USD", minimumFractionDigits: 3, maximumFractionDigits: 3,
+      });
+
+      function say(text, isError) {
+        status.textContent = text;
+        status.className = isError ? "status error" : "status";
+      }
+
+      function row(list, term, value) {
+        const dt = document.createElement("dt");
+        dt.textContent = term;
+        const dd = document.createElement("dd");
+        dd.textContent = value;
+        list.append(dt, dd);
+      }
+
+      function stopIcon(sequence) {
+        const element = document.createElement("div");
+        element.className = "stop-icon";
+        element.textContent = String(sequence);
+        return L.divIcon({ html: element, className: "", iconSize: [24, 24] });
+      }
+
+      function popup(lines) {
+        const element = document.createElement("div");
+        lines.forEach(function (line, index) {
+          if (index > 0) element.append(document.createElement("br"));
+          element.append(document.createTextNode(line));
+        });
+        return element;
+      }
+
+      function render(plan) {
+        const layer = L.geoJSON(plan.map, {
+          style: { color: "#0b6bcb", weight: 4 },
+          pointToLayer: function (feature, latlng) {
+            const p = feature.properties;
+            if (p.kind === "fuel_stop") return L.marker(latlng, { icon: stopIcon(p.sequence) });
+            return L.circleMarker(latlng, {
+              radius: 8, color: "#fff", weight: 2, fillOpacity: 1,
+              fillColor: p.kind === "start" ? "#1a7f37" : "#d1242f",
+            });
+          },
+          onEachFeature: function (feature, featureLayer) {
+            const p = feature.properties;
+            if (p.kind === "fuel_stop") {
+              featureLayer.bindPopup(popup([
+                p.sequence + ". " + p.name, p.address + ", " + p.city + ", " + p.state,
+                "Mile " + p.mile_marker + ", " + price.format(p.price_per_gallon) + " per gallon",
+                p.gallons + " gal for " + money.format(p.cost),
+              ]));
+            } else if (p.kind !== "route") {
+              featureLayer.bindPopup(popup([(p.kind === "start" ? "Start: " : "Finish: ") + p.label]));
+            }
+          },
+        }).addTo(map);
+        map.fitBounds(layer.getBounds(), { padding: [24, 24] });
+
+        const list = document.getElementById("summary-list");
+        list.replaceChildren();
+        row(list, "From", plan.start.label);
+        row(list, "To", plan.finish.label);
+        row(list, "Distance", plan.route.distance_miles.toLocaleString("en-US") + " mi");
+        row(list, "Driving time", plan.route.duration_hours + " h");
+        row(list, "Fuel stops", String(plan.summary.fuel_stop_count));
+        row(list, "Fuel bought", plan.summary.gallons_purchased + " gal");
+        row(list, "Total cost", money.format(plan.summary.total_fuel_cost));
+
+        const stops = document.getElementById("stops");
+        stops.replaceChildren();
+        plan.fuel_stops.forEach(function (stop) {
+          const item = document.createElement("li");
+          const name = document.createElement("strong");
+          name.textContent = stop.name;
+          const meta = document.createElement("div");
+          meta.className = "stop-meta";
+          meta.textContent = stop.city + ", " + stop.state + " | mile " + stop.mile_marker +
+            " | " + stop.gallons + " gal at " + price.format(stop.price_per_gallon) + " = " +
+            money.format(stop.cost);
+          item.append(name, meta);
+          stops.append(item);
+        });
+        if (plan.fuel_stops.length === 0) {
+          const item = document.createElement("li");
+          item.textContent = "None needed: the starting fuel covers the trip.";
+          stops.append(item);
+        }
+        document.getElementById("summary").hidden = false;
+        say("", false);
+      }
+
+      if (params.get("start") && params.get("finish")) {
+        say("Planning...", false);
+        fetch("{% url 'fuel-plan' %}?" + params.toString(), { headers: { Accept: "application/json" } })
+          .then(function (response) {
+            return response.json().then(function (body) { return { ok: response.ok, body: body }; });
+          })
+          .then(function (result) {
+            if (result.ok) render(result.body);
+            else say(result.body.detail || result.body.title || "The request failed.", true);
+          })
+          .catch(function () { say("The server could not be reached.", true); });
+      }
+    })();
+  </script>
+</body>
+</html>

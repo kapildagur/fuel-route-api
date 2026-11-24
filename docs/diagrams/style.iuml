@@ -1,0 +1,22 @@
+' Shared look for every diagram; each source includes this file.
+skinparam shadowing false
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 13
+skinparam roundCorner 8
+skinparam ArrowColor #3A4651
+skinparam ArrowFontSize 12
+skinparam TitleFontSize 16
+skinparam NoteBackgroundColor #FFF8DC
+skinparam NoteBorderColor #B8A26A
+skinparam ComponentBackgroundColor #EAF2FB
+skinparam ComponentBorderColor #2F6FAD
+skinparam PackageBorderColor #8A97A5
+skinparam DatabaseBackgroundColor #F3F6F9
+skinparam ParticipantBackgroundColor #EAF2FB
+skinparam ParticipantBorderColor #2F6FAD
+skinparam SequenceLifeLineBorderColor #8A97A5
+skinparam ActivityBackgroundColor #EAF2FB
+skinparam ActivityBorderColor #2F6FAD
+skinparam ActivityDiamondBackgroundColor #FFFFFF
+skinparam ActivityDiamondBorderColor #2F6FAD

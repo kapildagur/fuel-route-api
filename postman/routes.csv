@@ -1,0 +1,12 @@
+start,finish,start_fuel_gallons,min_stop_saving,expected_status
+"Chicago, IL","Dallas, TX",,,200
+"New York, NY","Los Angeles, CA",,,200
+"New York, NY","Los Angeles, CA",,0,200
+"Chicago, IL","Dallas, TX",10,,200
+"41.8781,-87.6298","32.7767,-96.7970",,,200
+"Denver, CO","Omaha, NE",,,200
+"Seattle, WA","Portland, OR",,,200
+"Chicago, IL","Dallas, TX",0,,422
+"51.5074,-0.1278","Dallas, TX",,,422
+"Chicago, IL","Dallas, TX",60,,400
+"Chicago, IL",,,,400

@@ -1,0 +1,15 @@
+# Runs the API on http://localhost:8000 with the settings from .env.
+# .env must set ORS_API_KEY and, because DEBUG is off here, DJANGO_SECRET_KEY.
+services:
+  api:
+    build: .
+    image: fuel-route-api:local
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      DJANGO_DEBUG: "false"
+      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1"
+    read_only: true
+    tmpfs:
+      - /tmp

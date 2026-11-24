@@ -1,0 +1,43 @@
+@startuml sequence-fuel-plan
+!include style.iuml
+title GET /api/v1/fuel-plan for "Chicago, IL" to "Dallas, TX"
+
+actor "API client" as client
+participant FuelPlanView as view
+participant FuelPlanService as service
+participant DatabasePlaceDirectory as places
+participant CachedRoutingProvider as routing
+participant OpenRouteServiceClient as ors_client
+participant StationIndex as index
+participant plan_fuel_stops as planner
+participant "OpenRouteService" as ors
+
+client -> view : GET ?start=Chicago, IL&finish=Dallas, TX
+view -> view : FuelPlanQuerySerializer\nvalidates the query
+view -> service : plan(start, finish)
+service -> places : find("Chicago", "IL")
+places --> service : ResolvedLocation
+service -> places : find("Dallas", "TX")
+places --> service : ResolvedLocation
+note right of places
+  "City, ST" is answered from the place table.
+  A street address goes to CachedGeocoder
+  instead, one provider call each.
+end note
+service -> routing : route(start, finish)
+alt route cached
+  routing --> service : Route
+else cache miss
+  routing -> ors_client : route(start, finish)
+  ors_client -> ors : POST /v2/directions/driving-hgv/geojson
+  ors --> ors_client : GeoJSON line, distance, duration
+  ors_client --> routing : Route
+  routing --> service : Route
+end
+service -> index : along(route, corridor_miles=5)
+index --> service : StationOnRoute list by mile marker
+service -> planner : stations, distance, Vehicle,\nstart fuel, min_stop_saving
+planner --> service : StopPlan
+service --> view : FuelPlan
+view --> client : 200 JSON: stops, totals,\nGeoJSON map, map_url
+@enduml

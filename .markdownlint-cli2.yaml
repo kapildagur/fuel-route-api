@@ -1,0 +1,14 @@
+# Markdown rules for README, CHANGELOG and docs/. Line length is off because prose is
+# wrapped by sentence, not by column; tables and URLs cannot be wrapped.
+config:
+  default: true
+  MD013: false
+  MD024:
+    siblings_only: true
+globs:
+  - "**/*.md"
+ignores:
+  - ".venv/**"
+  - ".tmp/**"
+  - "node_modules/**"
+  - ".github/pull_request_template.md"

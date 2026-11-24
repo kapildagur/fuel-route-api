@@ -1,0 +1,64 @@
+@startuml component-fuel-route-api
+!include style.iuml
+title Components of fuel-route-api and the direction of their dependencies
+
+actor "API client" as client
+node "Browser" as browser
+
+package "fuelroute.api (Django app)" {
+  [FuelPlanView] as view
+  [MapView] as mapview
+  [HealthView] as health
+  [get_fuel_plan_service] as container
+  [CachedRoutingProvider\nCachedGeocoder] as caching
+  [problem_exception_handler] as errors
+}
+
+package "fuelroute.stations (Django app)" {
+  [DatabasePlaceDirectory] as places
+  [load_station_index] as loader
+  [import_stations\nbuild_places] as commands
+}
+
+package "fuelroute.providers" {
+  [OpenRouteServiceClient] as ors_client
+}
+
+package "fuelroute.data" {
+  [read_fuel_prices\nselect_us_stations] as prices
+  [build_places\nread_places] as gazetteer
+}
+
+package "fuelroute.core (framework-free)" {
+  [FuelPlanService] as service
+  [StationIndex] as index
+  [plan_fuel_stops] as planner
+  [RoutingProvider\nGeocoder\nPlaceDirectory] as ports
+}
+
+database "SQLite\nplace, fuel_station" as db
+cloud "OpenRouteService" as ors
+cloud "OpenStreetMap tiles" as tiles
+
+client --> view : GET /api/v1/fuel-plan
+browser --> mapview : GET /map/
+browser --> view : fetch JSON
+browser --> tiles
+view --> container
+health --> container
+container --> service
+container --> caching
+container --> places
+container --> loader
+caching --> ors_client
+ors_client --> ors : HTTPS
+service --> ports
+service --> index
+service --> planner
+places --> db
+loader --> db
+commands --> prices
+commands --> gazetteer
+commands --> db
+view ..> errors : errors
+@enduml

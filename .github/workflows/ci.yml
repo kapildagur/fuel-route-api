@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly run catches upstream releases that break the build.
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: Static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.4.0
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "22"
+      - run: uv sync --locked
+      - run: make lint
+      - run: make type
+
+  test:
+    name: Tests on Python ${{ matrix.python }}
+    needs: static
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.4.0
+        with:
+          python-version: ${{ matrix.python }}
+      - run: uv sync --locked
+      - run: make test-all
+
+  lowest:
+    name: Lowest supported dependencies
+    needs: static
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.4.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --resolution lowest-direct
+      - run: uv run pytest tests/unit tests/integration
+
+  bench:
+    name: Speed budget
+    needs: static
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.4.0
+      - run: uv sync --locked
+      - run: make bench
+
+  package:
+    name: Package installs cleanly
+    needs: static
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.4.0
+      - run: uv build
+      - name: Install the wheel into a clean environment
+        run: |
+          uv venv /tmp/clean
+          uv pip install --python /tmp/clean/bin/python dist/*.whl
+          /tmp/clean/bin/python -c "import fuelroute, fuelroute.core.planner; print(fuelroute.__version__)"
+
+  diagrams:
+    name: Diagrams match their sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: make diagrams
+      - run: git diff --exit-code -- docs/diagrams
+
+  docker:
+    name: Container image builds
+    needs: static
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: docker build --tag fuel-route-api:ci .

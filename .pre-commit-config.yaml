@@ -1,0 +1,41 @@
+# Hooks run the same tools as `make check`. Generated files (migrations, rendered SVGs,
+# data/places.csv) are left alone by the hooks that rewrite files.
+exclude: ^(src/fuelroute/stations/migrations/|docs/diagrams/.*\.svg$|data/)
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-added-large-files
+        args: ["--maxkb=2048"]
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format
+        language: system
+        types: [python]
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix
+        language: system
+        types: [python]
+      - id: mypy
+        name: mypy (strict)
+        entry: uv run mypy src tests manage.py
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: import-linter
+        name: import-linter
+        entry: uv run lint-imports
+        language: system
+        types: [python]
+        pass_filenames: false
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.24.2
+    hooks:
+      - id: markdownlint-cli2
