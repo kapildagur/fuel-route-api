@@ -6,6 +6,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from urllib.parse import urlencode
 
+from django.conf import settings
 from django.urls import reverse
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
@@ -181,7 +182,9 @@ class FuelPlanSerializer(serializers.Serializer[Any]):
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_map(self, plan: FuelPlan) -> dict[str, Any]:
         """Return the route and stops as a GeoJSON FeatureCollection."""
-        return fuel_plan_feature_collection(plan)
+        return fuel_plan_feature_collection(
+            plan, tolerance_meters=settings.FUELROUTE_MAP_TOLERANCE_METERS
+        )
 
     def get_map_url(self, _plan: FuelPlan) -> str:
         """Return a link to the map page for the same query."""

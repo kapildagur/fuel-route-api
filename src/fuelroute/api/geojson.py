@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from fuelroute.core.simplify import simplify_path
+
 if TYPE_CHECKING:
     from fuelroute.core.geo import Coordinate
     from fuelroute.core.service import FuelPlan
@@ -14,16 +16,22 @@ _DECIMALS = 5
 """Five decimal places of a degree is about a metre, finer than any input here."""
 
 
-def fuel_plan_feature_collection(plan: FuelPlan) -> dict[str, Any]:
-    """Return a FeatureCollection with the route, the start, the finish and each stop."""
+def fuel_plan_feature_collection(plan: FuelPlan, *, tolerance_meters: float) -> dict[str, Any]:
+    """Return a FeatureCollection with the route, the start, the finish and each stop.
+
+    The route line is simplified to within ``tolerance_meters`` of the full line, which
+    keeps a cross-country response near 50 KB instead of several hundred.
+    """
+    line = simplify_path(plan.route.path, tolerance_meters=tolerance_meters)
     features: list[dict[str, Any]] = [
         _feature(
             {
                 "type": "LineString",
-                "coordinates": [_position(point) for point in plan.route.path],
+                "coordinates": [_position(point) for point in line],
             },
             kind="route",
             distance_miles=round(plan.route.distance_miles, 1),
+            tolerance_meters=tolerance_meters,
         ),
         _point(plan.start.coordinate, kind="start", label=plan.start.label),
         _point(plan.finish.coordinate, kind="finish", label=plan.finish.label),

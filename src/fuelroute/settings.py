@@ -191,6 +191,11 @@ FUELROUTE_CORRIDOR_MILES = _env_float(
 FUELROUTE_MIN_STOP_SAVING = _env_float(
     "FUELROUTE_MIN_STOP_SAVING", default=5.0, minimum=0.0, maximum=1000.0
 )
+# The route line in a response is simplified to within this many metres for display;
+# matching always uses the full line. 0 returns the full line.
+FUELROUTE_MAP_TOLERANCE_METERS = _env_float(
+    "FUELROUTE_MAP_TOLERANCE_METERS", default=50.0, minimum=0.0, maximum=1000.0
+)
 FUELROUTE_CACHE_SECONDS = int(
     _env_float("FUELROUTE_CACHE_SECONDS", default=3600, minimum=0, maximum=86400)
 )

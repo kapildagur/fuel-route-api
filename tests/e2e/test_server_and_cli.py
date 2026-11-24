@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data"
 STARTUP_SECONDS = 60
+MAX_CROSS_COUNTRY_RESPONSE_BYTES = 64 * 1024
 
 
 def _environment(database: Path, ors_url: str) -> dict[str, str]:
@@ -151,6 +152,20 @@ def test_server_plans_chicago_to_dallas_over_http(
     )
     assert again.json()["summary"] == body["summary"]
     assert len(fake_ors.calls) == 1
+
+
+def test_cross_country_response_stays_lean(server: str, fake_ors: FakeOpenRouteService) -> None:
+    fake_ors.route_payload = fixture_payload("route-new-york-los-angeles.json")
+    response = httpx.get(
+        f"{server}/api/v1/fuel-plan",
+        params={"start": "New York, NY", "finish": "Los Angeles, CA"},
+        timeout=30,
+    )
+    assert response.status_code == HTTPStatus.OK, response.text
+    # NFR-08: the full 15,822-point line would make this response about 340 KB.
+    assert len(response.content) <= MAX_CROSS_COUNTRY_RESPONSE_BYTES
+    line = response.json()["map"]["features"][0]["geometry"]["coordinates"]
+    assert len(line) < 3000
 
 
 def test_server_serves_the_map_page_and_rejects_bad_input(server: str) -> None:

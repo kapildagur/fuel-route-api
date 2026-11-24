@@ -2,7 +2,7 @@
 
 | Document | Version | Status | Owner | Last updated |
 | --- | --- | --- | --- | --- |
-| Design of the fuel route API | 0.2 | Draft | fuel-route-api contributors | 2026-11-24 |
+| Design of the fuel route API | 0.3 | Draft | fuel-route-api contributors | 2026-11-24 |
 
 ## 1. Purpose
 
@@ -54,7 +54,7 @@ Priorities follow MoSCoW: M (must), S (should), C (could). Every requirement is 
 | ID | Requirement | Priority |
 | --- | --- | --- |
 | RTE-01 | The API shall accept a start and a finish as `City, ST`, as `latitude,longitude`, or as a street address. | M |
-| RTE-02 | The API shall return the route as GeoJSON together with a link to a map page that draws it. | M |
+| RTE-02 | The API shall return the route as GeoJSON, simplified to within `FUELROUTE_MAP_TOLERANCE_METERS` (default 50 m) of the full line, together with a link to a map page that draws it. | M |
 | RTE-03 | The API shall reject a location that resolves outside the USA with status 422. | M |
 | RTE-04 | The API shall resolve `City, ST` from its own place table, without calling a provider. | S |
 | FUEL-01 | The API shall return the fuel stops that reach the finish at the lowest cost for a vehicle with a 500-mile range. | M |
@@ -77,6 +77,7 @@ Priorities follow MoSCoW: M (must), S (should), C (could). Every requirement is 
 | NFR-05 | A location shall be at most 200 characters, and an anonymous client shall make at most `FUELROUTE_RATE_LIMIT` requests (default 60 a minute). | Integration tests |
 | NFR-06 | The server shall refuse to start without an API key, without a secret key outside debug mode, or without stations. | `tests/integration/test_pages_and_startup.py`, `tests/e2e` |
 | NFR-07 | Line and branch coverage shall be at least 95 percent, enforced in CI. | `make test-all` |
+| NFR-08 | A plan for the 2,776-mile New York to Los Angeles route shall be at most 64 KB. | `test_cross_country_response_stays_lean` |
 
 ## 4. Architecture
 
@@ -103,7 +104,7 @@ The core defines three ports, `RoutingProvider`, `Geocoder` and `PlaceDirectory`
 3. `CachedRoutingProvider` returns a cached route or asks `OpenRouteServiceClient` for one.
 4. `StationIndex.along` finds the stations within the corridor and gives each a mile marker ([ADR-0005](adr/0005-match-stations-with-an-in-memory-index.md)).
 5. `plan_fuel_stops` chooses the purchases ([ADR-0003](adr/0003-plan-purchases-with-the-greedy-fixed-route-algorithm.md), [ADR-0004](adr/0004-drop-stops-that-save-less-than-a-threshold.md)).
-6. `FuelPlanSerializer` renders the plan, the totals and the GeoJSON map.
+6. `FuelPlanSerializer` renders the plan, the totals and the GeoJSON map. `simplify_path` thins the route line for display; matching in step 4 always uses the full line.
 
 ### 4.2 Planning algorithm
 
@@ -165,7 +166,6 @@ Each error class carries a stable `code`, and `problem_exception_handler` maps i
 | OI-02 | The detour to a station is not counted. | The real fuel used is a little higher than reported, by at most twice the corridor width per stop. | Add the detour to the planner as a per-stop cost. Planned for 0.2. |
 | OI-03 | The stop-dropping pass is a heuristic. | It does not promise the fewest stops for a given extra cost. | An exact dynamic program over stops, if routes with many stations need it. |
 | OI-04 | The local-memory cache is per process. | Several workers each call the provider once for the same route. | Configure Redis for the `routes` cache in production. |
-| OI-06 | The response carries the full route line: 15,964 points and 343 KB for New York to Los Angeles. | Large responses and Postman examples. | Simplify the line for display, keeping the full line for matching. Planned for 0.2. |
 | OI-07 | The free OpenRouteService plan allows 200 truck routes and 100 geocoding requests a day, per the rate-limit headers on 2026-11-24. | A busy day uses up the quota; requests then fail with `provider_rate_limited`. | The cache absorbs repeats; a paid plan or a self-hosted OpenRouteService removes the limit. |
 | OI-05 | West Coast coverage is thin: 16 stations in California, 29 in Oregon. | Some West Coast routes return `unreachable_segment`. | None in the service; it reports the gap. A fuller price file closes it. |
 
@@ -176,6 +176,7 @@ Each error class carries a stable `code`, and `problem_exception_handler` maps i
 | Does the vehicle start full or empty? | Full by default; the request can set `start_fuel_gallons` (A-01). |
 | Which price applies when a station ID repeats? | The lowest (A-05). |
 | Should the plan be the cheapest to the cent? | It drops stops that save less than $5 by default, and reports the lowest-cost plan beside it (FUEL-05). |
+| Must a response carry the full route line? (OI-06) | No. The line is simplified to within 50 m for display, which takes New York to Los Angeles from 15,822 points and about 340 KB to 2,243 points and under 64 KB (RTE-02, NFR-08). |
 
 ## 6. Test plan
 
@@ -222,6 +223,7 @@ A change enters review when `make check` passes. It can merge when three conditi
 | NFR-05 | `test_query_longer_than_the_limit_is_rejected`, `test_throttled_client_gets_a_problem_with_retry_after` |
 | NFR-06 | `test_startup_without_an_api_key_fails`, `test_startup_without_stations_fails`, `test_server_refuses_to_start_without_an_api_key` |
 | NFR-07 | CI job "Tests on Python" running `make test-all` |
+| NFR-08 | `test_cross_country_response_stays_lean`, `test_every_dropped_point_stays_within_the_tolerance`, `test_a_turnaround_on_the_same_line_is_kept` |
 
 ### 6.5 Test data
 

@@ -10,7 +10,7 @@ All notable changes to this project are recorded here. The format follows [Keep 
 - Locations can be `City, ST`, `latitude,longitude` or a street address. Towns and coordinates resolve without a provider call.
 - `start_fuel_gallons` sets the fuel at the start; the default is a full tank.
 - `min_stop_saving` drops stops that save less than the given dollars, $5 by default. The response reports the lowest-cost plan's total and stop count beside the plan returned.
-- A GeoJSON map in every response, and a map page at `/map/` that draws it with Leaflet.
+- A GeoJSON map in every response, and a map page at `/map/` that draws it with Leaflet. The route line is simplified to within `FUELROUTE_MAP_TOLERANCE_METERS` (50 m by default), so a cross-country response stays under 64 KB.
 - RFC 9457 problem details for every error, including the mile where the fuel runs out when no station is within range.
 - `/healthz` and the OpenAPI schema at `/api/schema/`.
 - `manage.py import_stations` loads the 6,626 US stations of the OPIS price file, and `manage.py build_places` rebuilds the town coordinates from the Census Bureau Gazetteer and GeoNames.

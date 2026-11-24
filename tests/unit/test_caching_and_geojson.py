@@ -90,14 +90,32 @@ def test_feature_collection_holds_route_ends_and_numbered_stops() -> None:
         stop_plan=StopPlan(stops=(stop,), lowest_cost=Decimal("32.50"), lowest_cost_stop_count=1),
         stations_considered=1,
     )
-    collection = fuel_plan_feature_collection(plan)
+    collection = fuel_plan_feature_collection(plan, tolerance_meters=50)
     kinds = [feature["properties"]["kind"] for feature in collection["features"]]
     assert kinds == ["route", "start", "finish", "fuel_stop"]
     line = collection["features"][0]["geometry"]
     assert line["type"] == "LineString"
-    assert line["coordinates"][0] == [-100.0, 40.0]
+    # The test road is straight, so its 50 points simplify to the two ends.
+    assert line["coordinates"] == [[-100.0, 40.0], [round(road_point(600).longitude, 5), 40.0]]
+    assert collection["features"][0]["properties"]["tolerance_meters"] == 50
     stop_properties = collection["features"][3]["properties"]
     assert stop_properties["sequence"] == 1
     assert stop_properties["station_id"] == 7
     assert stop_properties["cost"] == 32.5
     assert stop_properties["mile_marker"] == 300.0
+
+
+def test_tolerance_of_zero_returns_the_full_route_line() -> None:
+    route = road_route(600)
+    plan = FuelPlan(
+        start=ResolvedLocation("A", road_point(0), LocationSource.COORDINATES),
+        finish=ResolvedLocation("B", road_point(600), LocationSource.COORDINATES),
+        route=route,
+        vehicle=Vehicle(),
+        start_fuel_gallons=50,
+        min_stop_saving=Decimal(5),
+        stop_plan=StopPlan(stops=(), lowest_cost=Decimal("0.00"), lowest_cost_stop_count=0),
+        stations_considered=0,
+    )
+    collection = fuel_plan_feature_collection(plan, tolerance_meters=0)
+    assert len(collection["features"][0]["geometry"]["coordinates"]) == len(route.path)
