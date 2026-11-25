@@ -28,7 +28,11 @@ __all__ = ["DEFAULT_BASE_URL", "OpenRouteServiceClient"]
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_BASE_URL: Final = "https://api.openrouteservice.org"
+# HeiGIT serves openrouteservice and its Pelias geocoder under one host;
+# api.openrouteservice.org answers 410 since 2026-11-24.
+DEFAULT_BASE_URL: Final = "https://api.heigit.org"
+_DIRECTIONS_PATH: Final = "/openrouteservice/v2/directions/{profile}/geojson"
+_GEOCODE_PATH: Final = "/pelias/v1/search"
 _METERS_PER_MILE: Final = 1609.344
 _RETRY_DELAY_SECONDS: Final = 0.25
 _RETRYABLE_STATUS: Final = frozenset({502, 503, 504})
@@ -95,7 +99,7 @@ class OpenRouteServiceClient:
             "instructions": False,
             "geometry_simplify": True,
         }
-        payload = self._send("POST", f"/v2/directions/{self.profile}/geojson", json=body)
+        payload = self._send("POST", _DIRECTIONS_PATH.format(profile=self.profile), json=body)
         return _parse_route(payload)
 
     def geocode(self, text: str) -> ResolvedLocation | None:
@@ -105,7 +109,7 @@ class OpenRouteServiceClient:
             ProviderError: the provider failed, refused the key or hit a quota.
         """
         params = {"text": text, "boundary.country": "USA", "size": "1"}
-        payload = self._send("GET", "/geocode/search", params=params)
+        payload = self._send("GET", _GEOCODE_PATH, params=params)
         return _parse_geocode(payload)
 
     def _send(self, method: str, path: str, **kwargs: Any) -> Mapping[str, Any]:  # noqa: ANN401  # forwards httpx request options

@@ -29,7 +29,7 @@ def test_plan_between_two_towns_calls_the_provider_once(
 ) -> None:
     response = _get(api_client, start="Westend, KS", finish="Eastend, KS")
     assert response.status_code == HTTPStatus.OK
-    assert ors.calls == [("POST", "/v2/directions/driving-hgv/geojson")]
+    assert ors.calls == [("POST", "/openrouteservice/v2/directions/driving-hgv/geojson")]
     assert ors.authorizations == ["test-api-key"]
 
     body = response.json()
@@ -91,9 +91,9 @@ def test_street_addresses_cost_two_geocodes_and_one_route(
     response = _get(api_client, start="1 Main St, Westend KS", finish="9 Elm St, Eastend KS")
     assert response.status_code == HTTPStatus.OK
     assert [call[1] for call in ors.calls] == [
-        "/geocode/search",
-        "/geocode/search",
-        "/v2/directions/driving-hgv/geojson",
+        "/pelias/v1/search",
+        "/pelias/v1/search",
+        "/openrouteservice/v2/directions/driving-hgv/geojson",
     ]
     assert response.json()["finish"]["source"] == "geocoder"
 
@@ -191,7 +191,7 @@ def test_unusable_locations_are_rejected_before_routing(
     response = _get(api_client, start=start, finish="Eastend, KS")
     assert response.status_code == status
     assert response.json()["code"] == code
-    assert ("POST", "/v2/directions/driving-hgv/geojson") not in ors.calls
+    assert ("POST", "/openrouteservice/v2/directions/driving-hgv/geojson") not in ors.calls
 
 
 def test_route_the_provider_cannot_find_is_unprocessable(

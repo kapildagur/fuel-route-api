@@ -29,7 +29,7 @@ alt route cached
   routing --> service : Route
 else cache miss
   routing -> ors_client : route(start, finish)
-  ors_client -> ors : POST /v2/directions/driving-hgv/geojson
+  ors_client -> ors : POST /openrouteservice/v2/directions/driving-hgv/geojson
   ors --> ors_client : GeoJSON line, distance, duration
   ors_client --> routing : Route
   routing --> service : Route

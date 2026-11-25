@@ -218,7 +218,7 @@ LOGGING = {
 # ---------------------------------------------------------------- fuel route planner
 FUELROUTE_DATA_DIR = Path(os.environ.get("FUELROUTE_DATA_DIR", str(BASE_DIR / "data")))
 FUELROUTE_ORS_API_KEY = os.environ.get("ORS_API_KEY", "")
-FUELROUTE_ORS_BASE_URL = os.environ.get("ORS_BASE_URL", "https://api.openrouteservice.org")
+FUELROUTE_ORS_BASE_URL = os.environ.get("ORS_BASE_URL", "https://api.heigit.org")
 FUELROUTE_ORS_PROFILE = os.environ.get("ORS_PROFILE", "driving-hgv")
 FUELROUTE_ORS_TIMEOUT_SECONDS = _env_float(
     "ORS_TIMEOUT_SECONDS", default=10.0, minimum=1.0, maximum=60.0

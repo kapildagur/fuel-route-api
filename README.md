@@ -22,7 +22,7 @@ Version 0.1.0, unreleased. The API and the response format may change before 1.0
 
 ## Quick start
 
-You need [uv](https://docs.astral.sh/uv/) and a free OpenRouteService API key: create an account at <https://account.heigit.org/signup>. The free plan allows 200 truck routes and 100 geocoding requests a day; repeated requests are served from the cache and do not count.
+You need [uv](https://docs.astral.sh/uv/) and a free OpenRouteService API key: create an account at <https://account.heigit.org/signup>. The free plan allows 2,000 truck routes and 3,000 geocoding requests a day; repeated requests are served from the cache and do not count.
 
 1. Create your settings file and put your key in `ORS_API_KEY`:
 
@@ -176,6 +176,7 @@ Settings come from the environment or from `.env`; [.env.example](.env.example) 
 | `DJANGO_SECRET_KEY` | none; required unless `DJANGO_DEBUG=true` | Django secret key. |
 | `DJANGO_DEBUG` | `false` | Debug mode, for local use only. |
 | `DJANGO_ALLOWED_HOSTS` | `localhost,127.0.0.1` | Host names the server answers to. |
+| `ORS_BASE_URL` | `https://api.heigit.org` | Host of the OpenRouteService API; the service calls `/openrouteservice/v2/directions` and `/pelias/v1/search` on it. |
 | `ORS_PROFILE` | `driving-hgv` | OpenRouteService routing profile. |
 | `ORS_TIMEOUT_SECONDS` | `10` | Timeout of each provider call. |
 | `FUELROUTE_TANK_GALLONS` | `50` | Tank size. |

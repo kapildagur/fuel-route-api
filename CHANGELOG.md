@@ -19,3 +19,7 @@ All notable changes to this project are recorded here. The format follows [Keep 
 - `REDIS_URL` moves the route cache and the rate limit to a shared Redis. A Redis outage does not fail requests.
 - A Docker image with the station database built in, and `compose.yaml` that runs the API with PostgreSQL and Redis.
 - A Postman collection with tests and saved example responses, and `postman/routes.csv` to run a batch of routes in the Collection Runner.
+
+### Changed
+
+- OpenRouteService is called at `api.heigit.org`, because `api.openrouteservice.org` answers `410 Gone` since 2026-11-24. `ORS_BASE_URL` sets another host.

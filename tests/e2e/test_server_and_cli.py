@@ -143,7 +143,7 @@ def test_server_plans_chicago_to_dallas_over_http(
     for stop in body["fuel_stops"]:
         assert stop["distance_from_route_miles"] <= 5.0
         assert stop["state"] in {"IL", "MO", "AR", "OK", "TX"}
-    assert fake_ors.calls == [("POST", "/v2/directions/driving-hgv/geojson")]
+    assert fake_ors.calls == [("POST", "/openrouteservice/v2/directions/driving-hgv/geojson")]
 
     again = httpx.get(
         f"{server}/api/v1/fuel-plan",

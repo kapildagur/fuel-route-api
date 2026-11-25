@@ -26,7 +26,7 @@ def prepare_application() -> None:
         msg = "Set DJANGO_SECRET_KEY to a long random value, or DJANGO_DEBUG=true for local use."
         raise ImproperlyConfigured(msg)
     if not settings.FUELROUTE_ORS_API_KEY:
-        msg = "Set ORS_API_KEY to an OpenRouteService API key (free at openrouteservice.org)."
+        msg = "Set ORS_API_KEY to an OpenRouteService API key (free at https://account.heigit.org/signup)."
         raise ImproperlyConfigured(msg)
     service = get_fuel_plan_service()
     if service.station_count == 0:

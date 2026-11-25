@@ -45,7 +45,11 @@ class FakeOpenRouteService:
         url = urlparse(handler.path)
         self.calls.append((handler.command, url.path))
         self.authorizations.append(handler.headers.get("Authorization", ""))
-        if handler.command == "POST" and url.path.startswith("/v2/directions/"):
+        if url.path.startswith(("/v2/", "/geocode/")):
+            # The retired api.openrouteservice.org paths, which the real service answers
+            # with 410 and an HTML page.
+            return HTTPStatus.GONE, {}
+        if handler.command == "POST" and url.path.startswith("/openrouteservice/v2/directions/"):
             length = int(handler.headers.get("Content-Length", "0"))
             handler.rfile.read(length)
             accept = handler.headers.get("Accept", "*/*")
@@ -57,7 +61,7 @@ class FakeOpenRouteService:
                 body = {"error": {"code": 2009, "message": "Route could not be found"}}
                 return self.route_status, body
             return HTTPStatus.OK, self.route_payload or {}
-        if handler.command == "GET" and url.path == "/geocode/search":
+        if handler.command == "GET" and url.path == "/pelias/v1/search":
             text = parse_qs(url.query).get("text", [""])[0]
             return HTTPStatus.OK, self.geocode_payloads.get(text, {"features": []})
         return HTTPStatus.NOT_FOUND, {"error": "unknown path"}

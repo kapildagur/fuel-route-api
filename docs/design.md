@@ -2,7 +2,7 @@
 
 | Document | Version | Status | Owner | Last updated |
 | --- | --- | --- | --- | --- |
-| Design of the fuel route API | 0.5 | Draft | fuel-route-api contributors | 2026-11-24 |
+| Design of the fuel route API | 0.6 | Draft | fuel-route-api contributors | 2026-11-25 |
 
 ## 1. Purpose
 
@@ -12,7 +12,7 @@ The service answers one question: where should a truck with a 500-mile range buy
 
 ## 2. Scope and context
 
-The service is a Django application that exposes one JSON endpoint, a map page and a health check. It calls [OpenRouteService](https://openrouteservice.org/) for the route and, for street addresses only, for geocoding. Fuel prices come from the OPIS truck stop file supplied with the brief, stored in `data/fuel-prices.csv`.
+The service is a Django application that exposes one JSON endpoint, a map page and a health check. It calls [OpenRouteService](https://openrouteservice.org/) at `api.heigit.org` for the route and, for street addresses only, for geocoding. Fuel prices come from the OPIS truck stop file supplied with the brief, stored in `data/fuel-prices.csv`.
 
 Out of scope: user accounts, live price feeds, routes outside the USA, waypoints, and choosing among alternative routes. The route the provider returns is the route the plan follows.
 
@@ -181,7 +181,8 @@ Only `api` publishes a port. Without `DATABASE_URL` and `REDIS_URL` the same ima
 | OI-01 | Stations are placed at their town, not their exit. | In a large city a station can sit 10 miles from its town's point and fall outside the corridor, or inside it when it is on another road. | Geocode interstate exits from OpenStreetMap motorway junctions. Planned for 0.2. |
 | OI-02 | The detour to a station is not counted. | The real fuel used is a little higher than reported, by at most twice the corridor width per stop. | Add the detour to the planner as a per-stop cost. Planned for 0.2. |
 | OI-03 | The stop-dropping pass is a heuristic. | It does not promise the fewest stops for a given extra cost. | An exact dynamic program over stops, if routes with many stations need it. |
-| OI-07 | The free OpenRouteService plan allows 200 truck routes and 100 geocoding requests a day, per the rate-limit headers on 2026-11-24. | A busy day uses up the quota; requests then fail with `provider_rate_limited`. | The cache absorbs repeats; a paid plan or a self-hosted OpenRouteService removes the limit. |
+| OI-07 | The free OpenRouteService plan allows 2,000 truck routes and 3,000 geocoding requests a day, per the rate-limit headers on 2026-11-25. | A busy day uses up the quota; requests then fail with `provider_rate_limited`. | The cache absorbs repeats; a paid plan or a self-hosted OpenRouteService removes the limit. |
+| OI-08 | The provider can move its API. `api.openrouteservice.org` answers `410 Gone` since 2026-11-24; the API is now at `api.heigit.org`. | Until the host is changed, every route fails with `provider_error` (502). | `ORS_BASE_URL` changes the host without a release, and `make test-live` checks the real API before each release. |
 | OI-05 | West Coast coverage is thin: 16 stations in California, 29 in Oregon. | Some West Coast routes return `unreachable_segment`. | None in the service; it reports the gap. A fuller price file closes it. |
 
 ### 5.1 Resolved issues

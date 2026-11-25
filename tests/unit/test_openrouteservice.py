@@ -54,7 +54,7 @@ def test_route_request_carries_the_key_profile_and_points() -> None:
 
     route = _client(handler, profile="driving-car").route(START, FINISH)
     (request,) = seen
-    assert request.url.path == "/v2/directions/driving-car/geojson"
+    assert request.url.path == "/openrouteservice/v2/directions/driving-car/geojson"
     assert request.headers["Authorization"] == "secret-key"
     # The GeoJSON endpoint answers 406 unless the client accepts application/geo+json.
     assert "application/geo+json" in request.headers["Accept"]
@@ -229,7 +229,7 @@ def test_geocode_asks_for_one_us_match() -> None:
 
     location = _client(handler).geocode("Hays Kansas")
     (request,) = seen
-    assert request.url.path == "/geocode/search"
+    assert request.url.path == "/pelias/v1/search"
     assert request.url.params["text"] == "Hays Kansas"
     assert request.url.params["boundary.country"] == "USA"
     assert request.url.params["size"] == "1"
