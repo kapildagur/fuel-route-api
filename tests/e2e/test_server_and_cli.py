@@ -92,6 +92,7 @@ def server(loaded_database: dict[str, str]) -> Iterator[str]:
             f"127.0.0.1:{port}",
             "--workers",
             "1",
+            "--no-control-socket",
         ],
         cwd=ROOT,
         env=loaded_database,

@@ -23,3 +23,4 @@ All notable changes to this project are recorded here. The format follows [Keep 
 ### Changed
 
 - OpenRouteService is called at `api.heigit.org`, because `api.openrouteservice.org` answers `410 Gone` since 2026-11-24. `ORS_BASE_URL` sets another host.
+- The container runs gunicorn without its control socket, which the service does not use and the read-only file system cannot hold. gunicorn 25.1 or later is required.

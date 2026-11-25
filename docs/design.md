@@ -2,7 +2,7 @@
 
 | Document | Version | Status | Owner | Last updated |
 | --- | --- | --- | --- | --- |
-| Design of the fuel route API | 0.6 | Draft | fuel-route-api contributors | 2026-11-25 |
+| Design of the fuel route API | 0.7 | Draft | fuel-route-api contributors | 2026-11-25 |
 
 ## 1. Purpose
 
@@ -155,7 +155,7 @@ Each error class carries a stable `code`, and `problem_exception_handler` maps i
 
 | Service | Image | Role |
 | --- | --- | --- |
-| `api` | `fuel-route-api` | gunicorn with 2 workers and 4 threads each, read-only file system, port 8000. |
+| `api` | `fuel-route-api` | gunicorn with 2 workers and 4 threads each and no control socket, read-only file system, port 8000. |
 | `setup` | `fuel-route-api` | Runs `migrate` and `import_stations` once, then exits; `api` waits for it to succeed. |
 | `postgres` | `postgres:18.7-alpine` | The `place` and `fuel_station` tables ([ADR-0008](adr/0008-store-data-in-postgresql-in-production-and-sqlite-in-development.md)). |
 | `redis` | `redis:8.12-alpine` | The shared cache and rate-limit counters, 128 MB, least-recently-used eviction, no persistence ([ADR-0007](adr/0007-share-the-cache-through-redis-when-configured.md)). |

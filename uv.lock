@@ -571,7 +571,7 @@ requires-dist = [
     { name = "django", specifier = ">=6.1" },
     { name = "djangorestframework", specifier = ">=3.18" },
     { name = "drf-spectacular", specifier = ">=0.29" },
-    { name = "gunicorn", specifier = ">=23.0" },
+    { name = "gunicorn", specifier = ">=25.1" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "numpy", specifier = ">=2.1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
